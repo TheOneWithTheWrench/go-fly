@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type Runner interface {
@@ -93,6 +94,9 @@ func (c *Client) listOrgs(ctx context.Context) ([]string, error) {
 func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error) {
 	data, err := c.run(ctx, "api", endpoint, "--paginate")
 	if err != nil {
+		if isOrgEndpoint(endpoint) && isForbidden(data, err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("list repos: %w", err)
 	}
 
@@ -102,6 +106,22 @@ func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error)
 	}
 
 	return repos, nil
+}
+
+func isOrgEndpoint(endpoint string) bool {
+	return strings.HasPrefix(endpoint, "orgs/")
+}
+
+func isForbidden(output []byte, err error) bool {
+	if err == nil {
+		return false
+	}
+
+	text := string(output) + " " + err.Error()
+	return strings.Contains(text, "HTTP 403") ||
+		strings.Contains(text, "\"status\":\"403\"") ||
+		strings.Contains(text, "\"status\":403") ||
+		strings.Contains(text, "status: 403")
 }
 
 func (c *Client) run(ctx context.Context, args ...string) ([]byte, error) {

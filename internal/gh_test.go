@@ -12,9 +12,7 @@ import (
 )
 
 func TestFetchAll(t *testing.T) {
-	var (
-		newSut = func(runner internal.Runner) *internal.Client { return internal.NewClient(runner) }
-	)
+	newSut := func(runner internal.Runner) *internal.Client { return internal.NewClient(runner) }
 
 	t.Run("return error when gh fails", func(t *testing.T) {
 		var (
@@ -71,6 +69,48 @@ func TestFetchAll(t *testing.T) {
 			{Name: "repo", FullName: "user/repo", SSHURL: "git@github.com:user/repo.git"},
 			{Name: "shared", FullName: "acme/shared", SSHURL: "git@github.com:acme/shared.git"},
 			{Name: "tools", FullName: "acme/tools", SSHURL: "git@github.com:acme/tools.git"},
+		}, got)
+	})
+
+	t.Run("skip org repos when forbidden", func(t *testing.T) {
+		var (
+			runner    = &RunnerMock{}
+			sut       = newSut(runner)
+			responses = map[string]struct {
+				output []byte
+				err    error
+			}{
+				"api user/orgs --paginate": {
+					output: []byte(`[{"login":"acme"}]`),
+				},
+				"api user/repos --paginate": {
+					output: []byte(`[{"name":"repo","full_name":"user/repo","ssh_url":"git@github.com:user/repo.git"}]`),
+				},
+				"api orgs/acme/repos --paginate": {
+					output: []byte("HTTP 403"),
+					err:    errors.New("exit status 1"),
+				},
+			}
+		)
+
+		runner.RunFunc = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if name != "gh" {
+				return nil, errors.New("unexpected command")
+			}
+
+			key := strings.Join(args, " ")
+			resp, ok := responses[key]
+			if !ok {
+				return nil, errors.New("unexpected args: " + key)
+			}
+			return resp.output, resp.err
+		}
+
+		got, err := sut.FetchAll(context.Background())
+
+		require.NoError(t, err)
+		assert.Equal(t, []internal.Repo{
+			{Name: "repo", FullName: "user/repo", SSHURL: "git@github.com:user/repo.git"},
 		}, got)
 	})
 }

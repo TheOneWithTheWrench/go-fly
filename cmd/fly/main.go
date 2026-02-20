@@ -181,6 +181,10 @@ func newPruneFunc() fly.PruneFunc {
 func newRunnerFunc() fly.RunnerFunc {
 	return fly.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		cmd := exec.CommandContext(ctx, name, args...)
-		return cmd.CombinedOutput()
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return output, fmt.Errorf("run %s %v: %w: %s", name, args, err, output)
+		}
+		return output, nil
 	})
 }
