@@ -158,11 +158,11 @@ func (a *App) Query(query string, stdout io.Writer) error {
 	}
 
 	candidates := Build(localMatches, remoteMatches)
-	selected, ok, err := a.picker.Pick(query, candidates)
+	selected, err := a.selectCandidate(query, candidates)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if selected == nil {
 		return nil
 	}
 
@@ -191,6 +191,23 @@ func (a *App) Query(query string, stdout io.Writer) error {
 
 	_, err = fmt.Fprintln(stdout, dest)
 	return err
+}
+
+func (a *App) selectCandidate(query string, candidates []Candidate) (*Candidate, error) {
+	if len(candidates) == 1 && candidates[0].Kind == KindLocal {
+		selected := candidates[0]
+		return &selected, nil
+	}
+
+	selected, ok, err := a.picker.Pick(query, candidates)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	return &selected, nil
 }
 
 func (a *App) maybeStartBackgroundRefresh(cache Cache, exists bool) {

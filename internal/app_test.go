@@ -214,6 +214,32 @@ func TestQuery(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("skip picker when single local match", func(t *testing.T) {
+		var (
+			root  = t.TempDir()
+			valid = filepath.Join(root, "alpha")
+		)
+		require.NoError(t, os.MkdirAll(filepath.Join(valid, ".git"), 0o755))
+
+		deps := newDefaultDependencies()
+		deps.localStore.LoadFunc = func() ([]internal.Entry, error) {
+			return []internal.Entry{{Name: "alpha", Path: valid}}, nil
+		}
+		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
+		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+			t.Fatalf("picker should not be called")
+			return internal.Candidate{}, false, nil
+		}
+
+		out := &bytes.Buffer{}
+		sut := newSut(t, deps)
+
+		err := sut.Query("alpha", out)
+
+		require.NoError(t, err)
+		assert.Contains(t, out.String(), valid)
+	})
+
 	t.Run("print local selection", func(t *testing.T) {
 		var (
 			root  = t.TempDir()
