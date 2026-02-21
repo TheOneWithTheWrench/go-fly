@@ -38,10 +38,11 @@ brews:
   - name: go-fly
     homepage: https://github.com/TheOneWithTheWrench/go-fly
     description: "Fast CLI to jump to local git repos by name"
-    tap:
+    repository:
       owner: TheOneWithTheWrench
       name: tap
-    folder: Formula
+      token: "{{ .Env.GORELEASER_GITHUB_TOKEN }}"
+    directory: Formula
     license: MIT
     install: |
       bin.install "fly"
