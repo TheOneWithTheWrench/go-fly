@@ -72,7 +72,7 @@ var newSut = func(t *testing.T, deps appDependencies) *internal.App {
 
 func TestShouldRefresh(t *testing.T) {
 	var (
-		now = time.Date(2026, 2, 19, 12, 0, 0, 0, time.UTC)
+		now = time.Now().UTC()
 	)
 
 	t.Run("return true when cache missing", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestShouldRefresh(t *testing.T) {
 
 func TestShouldPrune(t *testing.T) {
 	var (
-		now = time.Date(2026, 2, 19, 12, 0, 0, 0, time.UTC)
+		now = time.Now().UTC()
 	)
 
 	t.Run("return true when state missing", func(t *testing.T) {

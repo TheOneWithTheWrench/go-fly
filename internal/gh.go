@@ -3,9 +3,12 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+var ErrForbidden = errors.New("forbidden")
 
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
@@ -94,8 +97,10 @@ func (c *Client) listOrgs(ctx context.Context) ([]string, error) {
 func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error) {
 	data, err := c.run(ctx, "api", endpoint, "--paginate")
 	if err != nil {
-		if isOrgEndpoint(endpoint) && isForbidden(data, err) {
-			return nil, nil
+		if isOrgEndpoint(endpoint) {
+			if errors.Is(err, ErrForbidden) {
+				return nil, nil
+			}
 		}
 		return nil, fmt.Errorf("list repos: %w", err)
 	}
@@ -106,6 +111,18 @@ func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error)
 	}
 
 	return repos, nil
+}
+
+func (c *Client) run(ctx context.Context, args ...string) ([]byte, error) {
+	data, err := c.runner.Run(ctx, "gh", args...)
+	if err != nil {
+		if isForbidden(data, err) {
+			return nil, fmt.Errorf("%w: %s", ErrForbidden, err)
+		}
+		return nil, err
+	}
+
+	return data, nil
 }
 
 func isOrgEndpoint(endpoint string) bool {
@@ -122,13 +139,4 @@ func isForbidden(output []byte, err error) bool {
 		strings.Contains(text, "\"status\":\"403\"") ||
 		strings.Contains(text, "\"status\":403") ||
 		strings.Contains(text, "status: 403")
-}
-
-func (c *Client) run(ctx context.Context, args ...string) ([]byte, error) {
-	data, err := c.runner.Run(ctx, "gh", args...)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
 }
