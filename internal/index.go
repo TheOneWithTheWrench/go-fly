@@ -8,11 +8,6 @@ import (
 	"path/filepath"
 )
 
-const (
-	indexAppName  = "fly"
-	indexFileName = "index.json"
-)
-
 type Entry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
@@ -21,6 +16,11 @@ type Entry struct {
 type IndexStore struct {
 	path string
 }
+
+const (
+	indexAppName  = "fly"
+	indexFileName = "index.json"
+)
 
 func NewIndexStore(path string) *IndexStore {
 	return &IndexStore{path: path}

@@ -137,6 +137,60 @@ func (m Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
+func (m *Model) MoveCursorUp() {
+	if m.cursor > 0 {
+		m.cursor--
+	}
+}
+
+func (m *Model) MoveCursorDown() {
+	if m.cursor < len(m.filtered)-1 {
+		m.cursor++
+	}
+}
+
+func (m *Model) PageDown() {
+	if len(m.filtered) == 0 {
+		return
+	}
+	step := max(1, m.visibleCount()/2)
+	m.cursor = min(len(m.filtered)-1, m.cursor+step)
+	m.ensureOffset()
+}
+
+func (m *Model) PageUp() {
+	if len(m.filtered) == 0 {
+		return
+	}
+	step := max(1, m.visibleCount()/2)
+	m.cursor = max(0, m.cursor-step)
+	m.ensureOffset()
+}
+
+func (m *Model) RenderList(reverse bool) []string {
+	return renderList(m, reverse)
+}
+
+func (m Model) Result() Result {
+	return Result{Index: m.selectedIndex, Value: m.selected, OK: m.ok}
+}
+
+func (m Model) FilteredItems() []string {
+	items := make([]string, len(m.filtered))
+	for i, entry := range m.filtered {
+		items[i] = entry.value
+	}
+	return items
+}
+
+func (m Model) CursorIndex() int {
+	return m.cursor
+}
+
+func (m Model) Query() string {
+	return m.input.Value()
+}
+
 func (m *Model) applyFilter(initial bool) {
 	query := m.input.Value()
 	m.filtered = defaultFilter(query, m.items)
@@ -172,40 +226,6 @@ func (m *Model) ensureOffset() {
 	if m.cursor >= m.offset+visible {
 		m.offset = m.cursor - visible + 1
 	}
-}
-
-func (m *Model) MoveCursorUp() {
-	if m.cursor > 0 {
-		m.cursor--
-	}
-}
-
-func (m *Model) MoveCursorDown() {
-	if m.cursor < len(m.filtered)-1 {
-		m.cursor++
-	}
-}
-
-func (m *Model) PageDown() {
-	if len(m.filtered) == 0 {
-		return
-	}
-	step := max(1, m.visibleCount()/2)
-	m.cursor = min(len(m.filtered)-1, m.cursor+step)
-	m.ensureOffset()
-}
-
-func (m *Model) PageUp() {
-	if len(m.filtered) == 0 {
-		return
-	}
-	step := max(1, m.visibleCount()/2)
-	m.cursor = max(0, m.cursor-step)
-	m.ensureOffset()
-}
-
-func (m *Model) RenderList(reverse bool) []string {
-	return renderList(m, reverse)
 }
 
 func (m Model) visibleRange() (int, int) {
@@ -253,42 +273,6 @@ func defaultFilter(query string, items []item) []item {
 	}
 
 	return filtered
-}
-
-func (m Model) Result() Result {
-	return Result{Index: m.selectedIndex, Value: m.selected, OK: m.ok}
-}
-
-func (m Model) FilteredItems() []string {
-	items := make([]string, len(m.filtered))
-	for i, entry := range m.filtered {
-		items[i] = entry.value
-	}
-	return items
-}
-
-func (m Model) CursorIndex() int {
-	return m.cursor
-}
-
-func (m Model) Query() string {
-	return m.input.Value()
-}
-
-func isKeyUp(value string) bool {
-	return value == "up" || value == "ctrl+p"
-}
-
-func isKeyDown(value string) bool {
-	return value == "down" || value == "ctrl+n"
-}
-
-func isKeySelect(value string) bool {
-	return value == "enter"
-}
-
-func isKeyCancel(value string) bool {
-	return value == "esc" || value == "ctrl+c"
 }
 
 func renderValue(value string, query string, selected bool) string {
@@ -342,6 +326,22 @@ func renderListLine(m *Model, index int) string {
 	}
 	line := renderValue(m.filtered[index].value, m.input.Value(), index == m.cursor)
 	return fmt.Sprintf("%s %s", prefix, line)
+}
+
+func isKeyUp(value string) bool {
+	return value == "up" || value == "ctrl+p"
+}
+
+func isKeyDown(value string) bool {
+	return value == "down" || value == "ctrl+n"
+}
+
+func isKeySelect(value string) bool {
+	return value == "enter"
+}
+
+func isKeyCancel(value string) bool {
+	return value == "esc" || value == "ctrl+c"
 }
 
 func isKeyPageDown(value string) bool {

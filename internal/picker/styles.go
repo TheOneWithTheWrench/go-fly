@@ -12,7 +12,7 @@ var (
 	itemStyle      = lipgloss.NewStyle().Foreground(paletteMutedGray)
 	cursorStyle    = lipgloss.NewStyle().Foreground(paletteAccentCyan).Bold(true)
 	selectedStyle  = lipgloss.NewStyle().Foreground(paletteAccentCyan).Bold(true)
-	helpStyle      = lipgloss.NewStyle().Foreground(paletteMutedGray).Italic(true)
+	helpStyle      = lipgloss.NewStyle().Foreground(paletteLightPurple).Italic(true)
 	emptyStyle     = lipgloss.NewStyle().Foreground(paletteMutedGray).Italic(true)
 	highlightStyle = lipgloss.NewStyle().Foreground(paletteLightPurple).Bold(true)
 )

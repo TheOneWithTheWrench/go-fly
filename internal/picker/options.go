@@ -5,12 +5,6 @@ import (
 	"os"
 )
 
-// Option configures the picker behavior.
-type Option func(*Config)
-
-// SortLessFunc defines ordering for items. Return true if a < b.
-type SortLessFunc func(string, string) bool
-
 // Config holds the picker configuration.
 type Config struct {
 	Title          string
@@ -19,6 +13,16 @@ type Config struct {
 	WindowPosition WindowPosition
 	Output         io.Writer
 }
+
+// Option configures the picker behavior.
+type Option func(*Config)
+
+// SortLessFunc defines ordering for items. Return true if a < b.
+type SortLessFunc func(string, string) bool
+
+var (
+	defaultOutput io.Writer = os.Stdout
+)
 
 // WithTitle sets the header line shown above the list.
 func WithTitle(title string) Option {
@@ -54,5 +58,3 @@ func WithOutput(output io.Writer) Option {
 		config.Output = output
 	}
 }
-
-var defaultOutput io.Writer = os.Stdout

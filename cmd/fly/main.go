@@ -26,7 +26,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	return fly.Run(args, stdout, stderr, fly.CliDependencies{
 		Init: func(out io.Writer) error {
-			return runInit(out)
+			_, err := fmt.Fprint(stdout, fly.ZshInitSnippet())
+			return err
 		},
 		Refresh: func() error {
 			return appInstance.Refresh(context.Background())
@@ -35,39 +36,30 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 			return appInstance.Prune()
 		},
 		Track: func() error {
-			return runTrack(appInstance)
+			currentDir, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("get working dir: %w", err)
+			}
+
+			root, ok, err := fly.Find(currentDir)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return nil
+			}
+
+			absRoot, err := filepath.Abs(root)
+			if err != nil {
+				return fmt.Errorf("resolve repo path: %w", err)
+			}
+
+			return appInstance.Track(absRoot)
 		},
 		Query: func(query string, out io.Writer) error {
 			return appInstance.Query(query, out)
 		},
 	})
-}
-
-func runInit(stdout io.Writer) error {
-	_, err := fmt.Fprint(stdout, fly.ZshInitSnippet())
-	return err
-}
-
-func runTrack(appInstance *fly.App) error {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("get working dir: %w", err)
-	}
-
-	root, ok, err := fly.Find(currentDir)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return nil
-	}
-
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return fmt.Errorf("resolve repo path: %w", err)
-	}
-
-	return appInstance.Track(absRoot)
 }
 
 func newApp() (*fly.App, error) {

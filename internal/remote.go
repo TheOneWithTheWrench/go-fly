@@ -9,11 +9,6 @@ import (
 	"time"
 )
 
-const (
-	remoteAppName  = "fly"
-	remoteFileName = "remote.json"
-)
-
 type Repo struct {
 	Name     string `json:"name"`
 	FullName string `json:"full_name"`
@@ -28,6 +23,11 @@ type Cache struct {
 type RemoteStore struct {
 	path string
 }
+
+const (
+	remoteAppName  = "fly"
+	remoteFileName = "remote.json"
+)
 
 func NewRemoteStore(path string) *RemoteStore {
 	return &RemoteStore{path: path}

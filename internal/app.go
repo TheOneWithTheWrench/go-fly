@@ -8,10 +8,16 @@ import (
 	"time"
 )
 
-const (
-	RefreshTTL = 24 * time.Hour
-	PruneTTL   = 24 * time.Hour
-)
+type App struct {
+	localStore    IndexStorage
+	remoteStore   RemoteStorage
+	remoteFetcher RemoteFetcher
+	picker        Picker
+	refreshLaunch RefreshLauncher
+	pruneStore    PruneStateStorage
+	pruneLaunch   PruneLauncher
+	cloner        Cloner
+}
 
 type IndexStorage interface {
 	Load() ([]Entry, error)
@@ -49,16 +55,10 @@ type Cloner interface {
 	Clone(Repo) (string, error)
 }
 
-type App struct {
-	localStore    IndexStorage
-	remoteStore   RemoteStorage
-	remoteFetcher RemoteFetcher
-	picker        Picker
-	refreshLaunch RefreshLauncher
-	pruneStore    PruneStateStorage
-	pruneLaunch   PruneLauncher
-	cloner        Cloner
-}
+const (
+	RefreshTTL = 24 * time.Hour
+	PruneTTL   = 24 * time.Hour
+)
 
 func NewApp(localStore IndexStorage, remoteStore RemoteStorage, ghClient RemoteFetcher, picker Picker, refreshLaunch RefreshLauncher, pruneStore PruneStateStorage, pruneLaunch PruneLauncher, cloner Cloner) (*App, error) {
 	if localStore == nil {
@@ -126,26 +126,12 @@ func (a *App) Track(repoPath string) error {
 }
 
 func (a *App) Query(query string, stdout io.Writer) error {
-	entries, err := a.localStore.Load()
+	entries, err := a.loadEntries()
 	if err != nil {
 		return err
 	}
-
-	cache, exists, err := a.remoteStore.Load()
-	if err != nil {
-		cache = Cache{}
-		exists = false
-	}
-
-	a.maybeStartBackgroundRefresh(cache, exists)
-
-	pruneState, pruneExists, err := a.pruneStore.Load()
-	if err != nil {
-		pruneState = PruneState{}
-		pruneExists = false
-	}
-
-	a.maybeStartBackgroundPrune(pruneState, pruneExists)
+	cache := a.loadCacheAndMaybeRefresh()
+	a.loadPruneAndMaybeStart()
 
 	if len(entries) == 0 && len(cache.Repos) == 0 {
 		return fmt.Errorf("no repos tracked yet")
@@ -193,6 +179,29 @@ func (a *App) Query(query string, stdout io.Writer) error {
 	return err
 }
 
+func (a *App) Prune() error {
+	entries, err := a.localStore.Load()
+	if err != nil {
+		return err
+	}
+
+	kept := make([]Entry, 0, len(entries))
+	for _, entry := range entries {
+		valid, err := CheckDestination(entry.Path)
+		if err != nil || !valid {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+
+	if err := a.localStore.Save(kept); err != nil {
+		return err
+	}
+
+	state := PruneState{LastPrunedAt: time.Now().UTC()}
+	return a.pruneStore.Save(state)
+}
+
 func (a *App) selectCandidate(query string, candidates []Candidate) (*Candidate, error) {
 	if len(candidates) == 1 && candidates[0].Kind == KindLocal {
 		selected := candidates[0]
@@ -226,6 +235,31 @@ func (a *App) maybeStartBackgroundPrune(state PruneState, exists bool) {
 	a.pruneLaunch.Launch()
 }
 
+func (a *App) loadEntries() ([]Entry, error) {
+	return a.localStore.Load()
+}
+
+func (a *App) loadCacheAndMaybeRefresh() Cache {
+	cache, exists, err := a.remoteStore.Load()
+	if err != nil {
+		cache = Cache{}
+		exists = false
+	}
+
+	a.maybeStartBackgroundRefresh(cache, exists)
+	return cache
+}
+
+func (a *App) loadPruneAndMaybeStart() {
+	state, exists, err := a.pruneStore.Load()
+	if err != nil {
+		state = PruneState{}
+		exists = false
+	}
+
+	a.maybeStartBackgroundPrune(state, exists)
+}
+
 func ShouldRefresh(cache Cache, exists bool) bool {
 	if !exists {
 		return true
@@ -250,29 +284,6 @@ func ShouldPrune(state PruneState, exists bool) bool {
 		return true
 	}
 	return false
-}
-
-func (a *App) Prune() error {
-	entries, err := a.localStore.Load()
-	if err != nil {
-		return err
-	}
-
-	kept := make([]Entry, 0, len(entries))
-	for _, entry := range entries {
-		valid, err := CheckDestination(entry.Path)
-		if err != nil || !valid {
-			continue
-		}
-		kept = append(kept, entry)
-	}
-
-	if err := a.localStore.Save(kept); err != nil {
-		return err
-	}
-
-	state := PruneState{LastPrunedAt: time.Now().UTC()}
-	return a.pruneStore.Save(state)
 }
 
 func removeEntry(entries []Entry, path string) []Entry {

@@ -25,50 +25,51 @@ type appDependencies struct {
 	cloner          *ClonerMock
 }
 
-var newDefaultDependencies = func() appDependencies {
-	deps := appDependencies{
-		localStore:      &IndexStorageMock{},
-		remoteStore:     &RemoteStorageMock{},
-		remoteFetcher:   &RemoteFetcherMock{},
-		picker:          &PickerMock{},
-		refreshLauncher: &RefreshLauncherMock{},
-		pruneStore:      &PruneStateStorageMock{},
-		pruneLauncher:   &PruneLauncherMock{},
-		cloner:          &ClonerMock{},
+var (
+	newDefaultDependencies = func() appDependencies {
+		deps := appDependencies{
+			localStore:      &IndexStorageMock{},
+			remoteStore:     &RemoteStorageMock{},
+			remoteFetcher:   &RemoteFetcherMock{},
+			picker:          &PickerMock{},
+			refreshLauncher: &RefreshLauncherMock{},
+			pruneStore:      &PruneStateStorageMock{},
+			pruneLauncher:   &PruneLauncherMock{},
+			cloner:          &ClonerMock{},
+		}
+
+		deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{}, nil }
+		deps.localStore.SaveFunc = func(entries []internal.Entry) error { return nil }
+		deps.localStore.UpsertFunc = func(entry internal.Entry) error { return nil }
+		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
+		deps.remoteStore.SaveFunc = func(cache internal.Cache) error { return nil }
+		deps.remoteFetcher.FetchAllFunc = func(ctx context.Context) ([]internal.Repo, error) { return nil, nil }
+		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+			return internal.Candidate{}, false, nil
+		}
+		deps.refreshLauncher.LaunchFunc = func() {}
+		deps.pruneStore.LoadFunc = func() (internal.PruneState, bool, error) { return internal.PruneState{}, true, nil }
+		deps.pruneStore.SaveFunc = func(state internal.PruneState) error { return nil }
+		deps.pruneLauncher.LaunchFunc = func() {}
+		deps.cloner.CloneFunc = func(repo internal.Repo) (string, error) { return "", nil }
+
+		return deps
 	}
-
-	deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{}, nil }
-	deps.localStore.SaveFunc = func(entries []internal.Entry) error { return nil }
-	deps.localStore.UpsertFunc = func(entry internal.Entry) error { return nil }
-	deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
-	deps.remoteStore.SaveFunc = func(cache internal.Cache) error { return nil }
-	deps.remoteFetcher.FetchAllFunc = func(ctx context.Context) ([]internal.Repo, error) { return nil, nil }
-	deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
-		return internal.Candidate{}, false, nil
+	newSut = func(t *testing.T, deps appDependencies) *internal.App {
+		app, err := internal.NewApp(
+			deps.localStore,
+			deps.remoteStore,
+			deps.remoteFetcher,
+			deps.picker,
+			deps.refreshLauncher,
+			deps.pruneStore,
+			deps.pruneLauncher,
+			deps.cloner,
+		)
+		require.NoError(t, err)
+		return app
 	}
-	deps.refreshLauncher.LaunchFunc = func() {}
-	deps.pruneStore.LoadFunc = func() (internal.PruneState, bool, error) { return internal.PruneState{}, true, nil }
-	deps.pruneStore.SaveFunc = func(state internal.PruneState) error { return nil }
-	deps.pruneLauncher.LaunchFunc = func() {}
-	deps.cloner.CloneFunc = func(repo internal.Repo) (string, error) { return "", nil }
-
-	return deps
-}
-
-var newSut = func(t *testing.T, deps appDependencies) *internal.App {
-	app, err := internal.NewApp(
-		deps.localStore,
-		deps.remoteStore,
-		deps.remoteFetcher,
-		deps.picker,
-		deps.refreshLauncher,
-		deps.pruneStore,
-		deps.pruneLauncher,
-		deps.cloner,
-	)
-	require.NoError(t, err)
-	return app
-}
+)
 
 func TestShouldRefresh(t *testing.T) {
 	var (

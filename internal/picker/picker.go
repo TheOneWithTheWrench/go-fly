@@ -15,6 +15,23 @@ type Result struct {
 	OK    bool
 }
 
+func newModel(items []string, query string, opts ...Option) Model {
+	config := defaultConfig()
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	input := textinput.New()
+	input.Prompt = config.Prompt
+	input.SetValue(query)
+	input.Focus()
+	input.PromptStyle = cursorStyle
+	input.TextStyle = inputStyle
+	input.Cursor.Style = cursorStyle
+
+	return newModelWithConfig(items, config, input)
+}
+
 func Run(items []string, query string, opts ...Option) (Result, error) {
 	config := defaultConfig()
 	for _, opt := range opts {
@@ -39,23 +56,6 @@ func Run(items []string, query string, opts ...Option) (Result, error) {
 	}
 
 	return Result{Index: finalModel.selectedIndex, Value: finalModel.selected, OK: finalModel.ok}, nil
-}
-
-func newModel(items []string, query string, opts ...Option) Model {
-	config := defaultConfig()
-	for _, opt := range opts {
-		opt(&config)
-	}
-
-	input := textinput.New()
-	input.Prompt = config.Prompt
-	input.SetValue(query)
-	input.Focus()
-	input.PromptStyle = cursorStyle
-	input.TextStyle = inputStyle
-	input.Cursor.Style = cursorStyle
-
-	return newModelWithConfig(items, config, input)
 }
 
 func defaultConfig() Config {

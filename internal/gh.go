@@ -8,15 +8,17 @@ import (
 	"strings"
 )
 
-var ErrForbidden = errors.New("forbidden")
+type Client struct {
+	runner Runner
+}
 
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
-type Client struct {
-	runner Runner
-}
+var (
+	ErrForbidden = errors.New("forbidden")
+)
 
 func NewClient(runner Runner) *Client {
 	return &Client{runner: runner}

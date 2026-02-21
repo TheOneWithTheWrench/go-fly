@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-const Usage = "usage: fly [query] | fly init | fly refresh | fly track"
-
 type CliDependencies struct {
 	Init    func(io.Writer) error
 	Refresh func() error
@@ -15,6 +13,8 @@ type CliDependencies struct {
 	Track   func() error
 	Query   func(string, io.Writer) error
 }
+
+const Usage = "usage: fly [query] | fly init | fly refresh | fly track"
 
 func Run(args []string, stdout io.Writer, stderr io.Writer, deps CliDependencies) error {
 	if len(args) < 2 {
