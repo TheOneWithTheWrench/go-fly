@@ -1,21 +1,31 @@
 package internal
 
 import (
-	"errors"
+	"os"
 
-	"github.com/ktr0731/go-fuzzyfinder"
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker"
 )
 
 func Pick(query string, candidates []Candidate) (Candidate, bool, error) {
-	idx, err := fuzzyfinder.Find(candidates, func(i int) string {
-		return CandidateLabel(candidates[i])
-	}, fuzzyfinder.WithQuery(query), fuzzyfinder.WithCursorPosition(fuzzyfinder.CursorPositionTop))
-	if err != nil {
-		if errors.Is(err, fuzzyfinder.ErrAbort) {
-			return Candidate{}, false, nil
-		}
-		return Candidate{}, false, err
+	items := make([]string, len(candidates))
+	for i := range candidates {
+		items[i] = CandidateLabel(candidates[i])
 	}
 
-	return candidates[idx], true, nil
+	result, err := picker.Run(items, query,
+		picker.WithOutput(os.Stderr),
+		picker.WithWindowPosition(picker.WindowTop),
+	)
+	if err != nil {
+		return Candidate{}, false, err
+	}
+	if !result.OK {
+		return Candidate{}, false, nil
+	}
+
+	if result.Index < 0 || result.Index >= len(candidates) {
+		return Candidate{}, false, nil
+	}
+
+	return candidates[result.Index], true, nil
 }
