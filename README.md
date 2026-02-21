@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/TheOneWithTheWrench/go-fly/actions/workflows/ci.yml/badge.svg)](https://github.com/TheOneWithTheWrench/go-fly/actions/workflows/ci.yml)
 [![Release](https://github.com/TheOneWithTheWrench/go-fly/actions/workflows/release.yml/badge.svg)](https://github.com/TheOneWithTheWrench/go-fly/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/TheOneWithTheWrench/go-fly)](https://github.com/TheOneWithTheWrench/go-fly/releases)
+[![Go version](https://img.shields.io/github/go-mod/go-version/TheOneWithTheWrench/go-fly)](https://go.dev/doc/devel/release)
 
 go-fly is a fast CLI to jump to local git repos by name. It can also find and clone remote repos via GitHub.
 
