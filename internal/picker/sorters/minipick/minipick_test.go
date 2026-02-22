@@ -24,13 +24,14 @@ func TestMiniPickSorter(t *testing.T) {
 			query   = "ap"
 			items   = []sorters.Item{
 				{Index: 0, Value: "alpha"},
-				{Index: 1, Value: "apple"},
+				{Index: 1, Value: "zap"},
+				{Index: 2, Value: "apple"},
 			}
 		)
 
 		result := sut.Sort(query, items, matcher)
 
-		assert.Equal(t, []int{1, 0}, indexes(result))
+		assert.Equal(t, []int{2, 1, 0}, indexes(result))
 	})
 
 	t.Run("sort by earliest start when widths tie", func(t *testing.T) {
