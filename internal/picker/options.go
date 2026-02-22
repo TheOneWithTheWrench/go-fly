@@ -3,22 +3,23 @@ package picker
 import (
 	"io"
 	"os"
+
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers"
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters"
 )
 
 // Config holds the picker configuration.
 type Config struct {
 	Title          string
 	Prompt         string
-	SortLess       SortLessFunc
+	Matcher        matchers.Matcher
+	Sorter         sorters.Sorter
 	WindowPosition WindowPosition
 	Output         io.Writer
 }
 
 // Option configures the picker behavior.
 type Option func(*Config)
-
-// SortLessFunc defines ordering for items. Return true if a < b.
-type SortLessFunc func(string, string) bool
 
 var (
 	defaultOutput io.Writer = os.Stdout
@@ -38,10 +39,15 @@ func WithPrompt(prompt string) Option {
 	}
 }
 
-// WithSorting sets the sorting comparator for items.
-func WithSorting(fn SortLessFunc) Option {
+func WithMatcher(matcher matchers.Matcher) Option {
 	return func(config *Config) {
-		config.SortLess = fn
+		config.Matcher = matcher
+	}
+}
+
+func WithSorter(sorter sorters.Sorter) Option {
+	return func(config *Config) {
+		config.Sorter = sorter
 	}
 }
 

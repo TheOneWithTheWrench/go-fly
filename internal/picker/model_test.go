@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,18 +13,6 @@ func TestFilterWithInitialQuery(t *testing.T) {
 	model := newModel([]string{"alpha", "beta", "gamma"}, "et")
 
 	assert.Equal(t, []string{"beta"}, model.FilteredItems())
-}
-
-func TestSortLessOrdersItems(t *testing.T) {
-	model := newModel(
-		[]string{"beta", "alpha", "gamma"},
-		"",
-		WithSorting(func(a, b string) bool {
-			return a > b
-		}),
-	)
-
-	assert.Equal(t, []string{"gamma", "beta", "alpha"}, model.FilteredItems())
 }
 
 func TestCursorNavigation(t *testing.T) {
@@ -78,23 +67,6 @@ func TestCancelReturnsNotOk(t *testing.T) {
 	assert.Empty(t, result.Value)
 }
 
-func TestSelectReturnsOriginalIndexAfterSorting(t *testing.T) {
-	model := newModel(
-		[]string{"beta", "alpha"},
-		"",
-		WithSorting(func(a, b string) bool {
-			return a < b
-		}),
-	)
-
-	model = sendKey(model, tea.KeyEnter)
-
-	result := model.Result()
-	assert.True(t, result.OK)
-	assert.Equal(t, 1, result.Index)
-	assert.Equal(t, "alpha", result.Value)
-}
-
 func TestWindowPositionBottomPlacesInputAfterList(t *testing.T) {
 	model := newModel(
 		[]string{"alpha", "beta"},
@@ -144,6 +116,18 @@ func TestViewHighlightsMatch(t *testing.T) {
 
 	view := model.View()
 	assert.Contains(t, view, highlightStyle.Render("alp"))
+}
+
+func TestOrderedMatcherHighlightsMatches(t *testing.T) {
+	model := newModel(
+		[]string{"alpha"},
+		"ap",
+		WithMatcher(orderedchars.New()),
+	)
+
+	view := model.View()
+	assert.Contains(t, view, highlightStyle.Render("a"))
+	assert.Contains(t, view, highlightStyle.Render("p"))
 }
 
 func sendKey(model Model, key tea.KeyType) Model {

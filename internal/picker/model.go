@@ -1,11 +1,15 @@
 package picker
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/layout"
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers"
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -44,10 +48,8 @@ func newModelWithConfig(items []string, config Config, input textinput.Model) Mo
 	for i, value := range items {
 		baseItems[i] = item{index: i, value: value}
 	}
-	if config.SortLess != nil {
-		sort.SliceStable(baseItems, func(i, j int) bool {
-			return config.SortLess(baseItems[i].value, baseItems[j].value)
-		})
+	if config.Matcher == nil {
+		config.Matcher = orderedchars.New()
 	}
 
 	m := Model{
@@ -193,7 +195,10 @@ func (m Model) Query() string {
 
 func (m *Model) applyFilter(initial bool) {
 	query := m.input.Value()
-	m.filtered = defaultFilter(query, m.items)
+	m.filtered = filterItems(query, m.items, m.config.Matcher)
+	if m.config.Sorter != nil {
+		m.filtered = sortItems(query, m.filtered, m.config.Matcher, m.config.Sorter)
+	}
 
 	if len(m.filtered) == 0 {
 		m.cursor = 0
@@ -259,15 +264,14 @@ func (m Model) visibleCount() int {
 	return visible
 }
 
-func defaultFilter(query string, items []item) []item {
+func filterItems(query string, items []item, matcher matchers.Matcher) []item {
 	if strings.TrimSpace(query) == "" {
 		return items
 	}
 
-	needle := strings.ToLower(query)
 	filtered := make([]item, 0, len(items))
 	for _, entry := range items {
-		if strings.Contains(strings.ToLower(entry.value), needle) {
+		if matcher.Match(query, entry.value).Matched {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -275,27 +279,54 @@ func defaultFilter(query string, items []item) []item {
 	return filtered
 }
 
-func renderValue(value string, query string, selected bool) string {
+func sortItems(query string, items []item, matcher matchers.Matcher, sorter sorters.Sorter) []item {
+	entries := make([]sorters.Item, len(items))
+	for i, entry := range items {
+		entries[i] = sorters.Item{Index: entry.index, Value: entry.value}
+	}
+
+	sorted := sorter.Sort(query, entries, matcher)
+	if len(sorted) == 0 {
+		return nil
+	}
+
+	result := make([]item, len(sorted))
+	for i, entry := range sorted {
+		result[i] = item{index: entry.Index, value: entry.Value}
+	}
+
+	return result
+}
+
+func renderValue(value string, selected bool, match matchers.Match) string {
 	baseStyle := itemStyle
 	if selected {
 		baseStyle = selectedStyle
 	}
-	if strings.TrimSpace(query) == "" {
+	if !match.Matched || len(match.Ranges) == 0 {
 		return baseStyle.Render(value)
 	}
 
-	needle := strings.ToLower(query)
-	label := strings.ToLower(value)
-	idx := strings.Index(label, needle)
-	if idx < 0 {
+	length := len(value)
+	ranges := normalizeRanges(match.Ranges, length)
+	if len(ranges) == 0 {
 		return baseStyle.Render(value)
 	}
 
-	start := value[:idx]
-	match := value[idx : idx+len(query)]
-	end := value[idx+len(query):]
+	var rendered strings.Builder
+	pos := 0
+	for _, r := range ranges {
+		if r.Start > pos {
+			rendered.WriteString(baseStyle.Render(value[pos:r.Start]))
+		}
+		rendered.WriteString(highlightStyle.Render(value[r.Start:r.End]))
+		pos = r.End
+	}
+	if pos < length {
+		rendered.WriteString(baseStyle.Render(value[pos:]))
+	}
 
-	return baseStyle.Render(start) + highlightStyle.Render(match) + baseStyle.Render(end)
+	return rendered.String()
 }
 
 func renderList(m *Model, reverse bool) []string {
@@ -324,8 +355,66 @@ func renderListLine(m *Model, index int) string {
 	if index == m.cursor {
 		prefix = cursorStyle.Render(">")
 	}
-	line := renderValue(m.filtered[index].value, m.input.Value(), index == m.cursor)
+	value := m.filtered[index].value
+	match := m.config.Matcher.Match(m.input.Value(), value)
+	line := renderValue(value, index == m.cursor, match)
 	return fmt.Sprintf("%s %s", prefix, line)
+}
+
+func normalizeRanges(ranges []matchers.Range, length int) []matchers.Range {
+	if length <= 0 || len(ranges) == 0 {
+		return nil
+	}
+
+	clamped := make([]matchers.Range, 0, len(ranges))
+	for _, r := range ranges {
+		start := r.Start
+		end := r.End
+		if start < 0 {
+			start = 0
+		}
+		if end > length {
+			end = length
+		}
+		if end <= start {
+			continue
+		}
+		clamped = append(clamped, matchers.Range{Start: start, End: end})
+	}
+
+	if len(clamped) == 0 {
+		return nil
+	}
+
+	return mergeRanges(clamped)
+}
+
+func mergeRanges(ranges []matchers.Range) []matchers.Range {
+	if len(ranges) == 0 {
+		return nil
+	}
+
+	sorted := append([]matchers.Range(nil), ranges...)
+	slices.SortFunc(sorted, func(a, b matchers.Range) int {
+		if a.Start != b.Start {
+			return cmp.Compare(a.Start, b.Start)
+		}
+		return cmp.Compare(a.End, b.End)
+	})
+
+	merged := []matchers.Range{sorted[0]}
+	for _, r := range sorted[1:] {
+		last := &merged[len(merged)-1]
+		if r.Start <= last.End {
+			if r.End > last.End {
+				last.End = r.End
+			}
+			continue
+		}
+		merged = append(merged, r)
+	}
+
+	return merged
 }
 
 func isKeyUp(value string) bool {
