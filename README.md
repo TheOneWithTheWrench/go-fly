@@ -6,26 +6,32 @@
 [![Go version](https://img.shields.io/github/go-mod/go-version/TheOneWithTheWrench/go-fly)](https://go.dev/doc/devel/release)
 [![Go Report Card](https://goreportcard.com/badge/github.com/TheOneWithTheWrench/go-fly)](https://goreportcard.com/report/github.com/TheOneWithTheWrench/go-fly)
 
-go-fly is a fast CLI to jump to local git repos by name. It can also find and clone remote repos via GitHub.
+go-fly is a fast CLI to jump to local git repos by name. It can also discover and clone remote GitHub repos.
 
 **Status:** Under development. Early and still evolving.
 
-## Setup (zsh)
+## Install & Setup (zsh)
+Install with Homebrew:
+
+```bash
+brew install TheOneWithTheWrench/tap/go-fly
+```
+
 Add this to your `~/.zshrc`:
 
 ```zsh
 eval "$(fly init)"
 ```
 
-## Usage
-- `fly <query>`: open a fuzzy picker and jump to a repo.
-- `fly refresh`: refresh the remote repo cache.
-- `fly`: open the full list.
+Optional but recommended on first install:
 
-## Install (Homebrew)
 ```bash
-brew install TheOneWithTheWrench/tap/go-fly
+fly refresh
 ```
 
-## To be developed
-- Homebrew install support.
+`fly refresh` fetches your GitHub repos and caches them locally so they show up immediately when you search. Running it once up front avoids a cold start and makes the first `fly <query>` feel instant.
+
+## Usage
+- `fly`: open the full list.
+- `fly <query>`: narrow the list and jump to a repo.
+- `fly refresh`: fetch GitHub repos and update the local cache.

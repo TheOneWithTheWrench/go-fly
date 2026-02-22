@@ -4,6 +4,9 @@ import (
 	"strings"
 )
 
+// Filter pre-filters local entries for explicit queries.
+// The goal is a higher chance of a direct hit when the user types a query.
+// Empty queries skip this and show the full list for fuzzy browsing.
 func Filter(query string, entries []Entry) []Entry {
 	if strings.TrimSpace(query) == "" {
 		return entries
@@ -23,6 +26,9 @@ func Filter(query string, entries []Entry) []Entry {
 	return filtered
 }
 
+// FilterRemote pre-filters remote repos for explicit queries.
+// This keeps the candidate set tight so a query is likely to resolve to one repo.
+// Empty queries skip this and show the full list for fuzzy browsing.
 func FilterRemote(query string, repos []Repo) []Repo {
 	if strings.TrimSpace(query) == "" {
 		return repos
