@@ -72,7 +72,7 @@ func (c *Client) FetchAll(ctx context.Context) ([]Repo, error) {
 }
 
 func (c *Client) listOrgs(ctx context.Context) ([]string, error) {
-	data, err := c.run(ctx, "api", "user/orgs", "--paginate", "-F", "per_page=100")
+	data, err := c.run(ctx, "api", "user/orgs", "--method", "GET", "--paginate", "-F", "per_page=100")
 	if err != nil {
 		return nil, fmt.Errorf("list orgs: %w", err)
 	}
@@ -95,7 +95,7 @@ func (c *Client) listOrgs(ctx context.Context) ([]string, error) {
 }
 
 func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error) {
-	data, err := c.run(ctx, "api", endpoint, "--paginate", "-F", "per_page=100")
+	data, err := c.run(ctx, "api", endpoint, "--method", "GET", "--paginate", "-F", "per_page=100")
 	if err != nil {
 		if isOrgEndpoint(endpoint) {
 			if errors.Is(err, ErrForbidden) {

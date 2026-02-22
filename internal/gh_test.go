@@ -22,6 +22,12 @@ func TestFetchAll(t *testing.T) {
 		}
 		return count
 	}
+	assertUsesGet := func(t *testing.T, calls []string) {
+		t.Helper()
+		for _, call := range calls {
+			assert.Contains(t, call, "--method GET")
+		}
+	}
 
 	t.Run("return error when gh fails", func(t *testing.T) {
 		var (
@@ -85,6 +91,7 @@ func TestFetchAll(t *testing.T) {
 		got, err := sut.FetchAll(context.Background())
 
 		require.NoError(t, err)
+		assertUsesGet(t, calls)
 		assert.Equal(t, 1, countMatches(calls, "user/orgs"))
 		assert.Equal(t, 1, countMatches(calls, "user/repos"))
 		assert.Equal(t, 1, countMatches(calls, "orgs/acme/repos"))
@@ -143,6 +150,7 @@ func TestFetchAll(t *testing.T) {
 		got, err := sut.FetchAll(context.Background())
 
 		require.NoError(t, err)
+		assertUsesGet(t, calls)
 		assert.Equal(t, 1, countMatches(calls, "user/orgs"))
 		assert.Equal(t, 1, countMatches(calls, "user/repos"))
 		assert.Equal(t, 1, countMatches(calls, "orgs/acme/repos"))
