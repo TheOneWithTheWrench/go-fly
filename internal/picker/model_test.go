@@ -7,144 +7,182 @@ import (
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFilterWithInitialQuery(t *testing.T) {
-	model := newModel([]string{"alpha", "beta", "gamma"}, "et")
+func TestModel(t *testing.T) {
+	var (
+		newTestModel = func(items []string, query string, opts ...Option) Model {
+			config := defaultConfig()
+			for _, opt := range opts {
+				opt(&config)
+			}
 
-	assert.Equal(t, []string{"beta"}, model.FilteredItems())
-}
-
-func TestCursorNavigation(t *testing.T) {
-	model := newModel([]string{"alpha", "beta", "gamma"}, "")
-
-	model = sendKey(model, tea.KeyDown)
-	assert.Equal(t, 1, model.CursorIndex())
-
-	model = sendKey(model, tea.KeyCtrlP)
-	assert.Equal(t, 0, model.CursorIndex())
-}
-
-func TestTypingJKUpdatesQuery(t *testing.T) {
-	model := newModel([]string{"alpha", "beta", "gamma"}, "")
-
-	model = sendKeyRune(model, 'j')
-	assert.Equal(t, "j", model.Query())
-
-	model = sendKeyRune(model, 'k')
-	assert.Equal(t, "jk", model.Query())
-}
-
-func TestPageNavigation(t *testing.T) {
-	model := newModel([]string{"a", "b", "c", "d", "e"}, "")
-	model.height = 5
-
-	model = sendKey(model, tea.KeyCtrlD)
-	assert.Equal(t, 1, model.CursorIndex())
-
-	model = sendKey(model, tea.KeyCtrlU)
-	assert.Equal(t, 0, model.CursorIndex())
-}
-
-func TestSelectReturnsResult(t *testing.T) {
-	model := newModel([]string{"alpha", "beta"}, "")
-
-	model = sendKey(model, tea.KeyDown)
-	model = sendKey(model, tea.KeyEnter)
-
-	result := model.Result()
-	assert.True(t, result.OK)
-	assert.Equal(t, "beta", result.Value)
-}
-
-func TestCancelReturnsNotOk(t *testing.T) {
-	model := newModel([]string{"alpha", "beta"}, "")
-
-	model = sendKey(model, tea.KeyEsc)
-
-	result := model.Result()
-	assert.False(t, result.OK)
-	assert.Empty(t, result.Value)
-}
-
-func TestWindowPositionBottomPlacesInputAfterList(t *testing.T) {
-	model := newModel(
-		[]string{"alpha", "beta"},
-		"",
-		WithWindowPosition(WindowBottom),
+			return newModel(items, query, config)
+		}
+		sendKey = func(model Model, key tea.KeyType) Model {
+			msg := tea.KeyMsg{Type: key}
+			updated, _ := model.Update(msg)
+			return updated.(Model)
+		}
+		sendKeyRune = func(model Model, key rune) Model {
+			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}}
+			updated, _ := model.Update(msg)
+			return updated.(Model)
+		}
 	)
 
-	lines := strings.Split(model.View(), "\n")
-	requireLineCount(t, lines, 4)
-	assert.Contains(t, lines[0], "beta")
-	assert.Contains(t, lines[1], "alpha")
-	assert.Contains(t, lines[2], model.input.View())
-	assert.Contains(t, lines[3], helpLine)
-}
+	t.Run("filter with initial query", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta", "gamma"}
+			model = newTestModel(items, "et")
+		)
 
-func TestWindowBottomNavigationKeepsDirection(t *testing.T) {
-	model := newModel(
-		[]string{"alpha", "beta", "gamma"},
-		"",
-		WithWindowPosition(WindowBottom),
-	)
+		assert.Equal(t, []string{"beta"}, model.FilteredItems())
+	})
 
-	model = sendKey(model, tea.KeyDown)
-	assert.Equal(t, 0, model.CursorIndex())
+	t.Run("cursor navigation", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta", "gamma"}
+			model = newTestModel(items, "")
+		)
 
-	model = sendKey(model, tea.KeyUp)
-	assert.Equal(t, 1, model.CursorIndex())
-}
+		model = sendKey(model, tea.KeyDown)
+		assert.Equal(t, 1, model.CursorIndex())
 
-func TestViewIncludesTitleAndHelp(t *testing.T) {
-	model := newModel(
-		[]string{"alpha"},
-		"",
-		WithTitle("Pick a repo"),
-	)
+		model = sendKey(model, tea.KeyCtrlP)
+		assert.Equal(t, 0, model.CursorIndex())
+	})
 
-	lines := strings.Split(model.View(), "\n")
-	requireLineCount(t, lines, 4)
-	assert.Contains(t, lines[0], "Pick a repo")
-	assert.Contains(t, lines[1], model.input.View())
-	assert.Contains(t, lines[2], "alpha")
-	assert.Contains(t, lines[3], helpLine)
-}
+	t.Run("typing j and k updates query", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta", "gamma"}
+			model = newTestModel(items, "")
+		)
 
-func TestViewHighlightsMatch(t *testing.T) {
-	model := newModel([]string{"alpha"}, "alp")
+		model = sendKeyRune(model, 'j')
+		assert.Equal(t, "j", model.Query())
 
-	view := model.View()
-	assert.Contains(t, view, highlightStyle.Render("alp"))
-}
+		model = sendKeyRune(model, 'k')
+		assert.Equal(t, "jk", model.Query())
+	})
 
-func TestOrderedMatcherHighlightsMatches(t *testing.T) {
-	model := newModel(
-		[]string{"alpha"},
-		"ap",
-		WithMatcher(orderedchars.New()),
-	)
+	t.Run("page navigation", func(t *testing.T) {
+		var (
+			items = []string{"a", "b", "c", "d", "e"}
+			model = newTestModel(items, "")
+		)
+		model.height = 5
 
-	view := model.View()
-	assert.Contains(t, view, highlightStyle.Render("a"))
-	assert.Contains(t, view, highlightStyle.Render("p"))
-}
+		model = sendKey(model, tea.KeyCtrlD)
+		assert.Equal(t, 1, model.CursorIndex())
 
-func sendKey(model Model, key tea.KeyType) Model {
-	msg := tea.KeyMsg{Type: key}
-	updated, _ := model.Update(msg)
-	return updated.(Model)
-}
+		model = sendKey(model, tea.KeyCtrlU)
+		assert.Equal(t, 0, model.CursorIndex())
+	})
 
-func sendKeyRune(model Model, key rune) Model {
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}}
-	updated, _ := model.Update(msg)
-	return updated.(Model)
-}
+	t.Run("select returns result", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta"}
+			model = newTestModel(items, "")
+		)
 
-func requireLineCount(t *testing.T, lines []string, count int) {
-	t.Helper()
-	if len(lines) != count {
-		t.Fatalf("expected %d lines, got %d", count, len(lines))
-	}
+		model = sendKey(model, tea.KeyDown)
+		model = sendKey(model, tea.KeyEnter)
+
+		result := model.Result()
+		assert.True(t, result.OK)
+		assert.Equal(t, "beta", result.Value)
+	})
+
+	t.Run("cancel returns not ok", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta"}
+			model = newTestModel(items, "")
+		)
+
+		model = sendKey(model, tea.KeyEsc)
+
+		result := model.Result()
+		assert.False(t, result.OK)
+		assert.Empty(t, result.Value)
+	})
+
+	t.Run("window bottom places input after list", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta"}
+			model = newTestModel(
+				items,
+				"",
+				WithWindowPosition(WindowBottom),
+			)
+		)
+
+		lines := strings.Split(model.View(), "\n")
+		require.Len(t, lines, 4)
+		assert.Contains(t, lines[0], "beta")
+		assert.Contains(t, lines[1], "alpha")
+		assert.Contains(t, lines[2], model.input.View())
+		assert.Contains(t, lines[3], helpLine)
+	})
+
+	t.Run("window bottom navigation keeps direction", func(t *testing.T) {
+		var (
+			items = []string{"alpha", "beta", "gamma"}
+			model = newTestModel(
+				items,
+				"",
+				WithWindowPosition(WindowBottom),
+			)
+		)
+
+		model = sendKey(model, tea.KeyDown)
+		assert.Equal(t, 0, model.CursorIndex())
+
+		model = sendKey(model, tea.KeyUp)
+		assert.Equal(t, 1, model.CursorIndex())
+	})
+
+	t.Run("view includes title and help", func(t *testing.T) {
+		var (
+			items = []string{"alpha"}
+			model = newTestModel(
+				items,
+				"",
+				WithTitle("Pick a repo"),
+			)
+		)
+
+		lines := strings.Split(model.View(), "\n")
+		require.Len(t, lines, 4)
+		assert.Contains(t, lines[0], "Pick a repo")
+		assert.Contains(t, lines[1], model.input.View())
+		assert.Contains(t, lines[2], "alpha")
+		assert.Contains(t, lines[3], helpLine)
+	})
+
+	t.Run("view highlights match", func(t *testing.T) {
+		var (
+			items = []string{"alpha"}
+			model = newTestModel(items, "alp")
+		)
+
+		view := model.View()
+		assert.Contains(t, view, highlightStyle.Render("alp"))
+	})
+
+	t.Run("ordered matcher highlights matches", func(t *testing.T) {
+		var (
+			items = []string{"alpha"}
+			model = newTestModel(
+				items,
+				"ap",
+				WithMatcher(orderedchars.New()),
+			)
+		)
+
+		view := model.View()
+		assert.Contains(t, view, highlightStyle.Render("a"))
+		assert.Contains(t, view, highlightStyle.Render("p"))
+	})
 }
