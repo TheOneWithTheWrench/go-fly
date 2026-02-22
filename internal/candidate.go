@@ -20,6 +20,9 @@ type Candidate struct {
 	Remote Repo
 }
 
+// Build returns candidates ordered with local repos first, then remotes.
+//
+// Remote candidates that match a local repo name are skipped to avoid duplicates.
 func Build(locals []Entry, remotes []Repo) []Candidate {
 	localNames := make(map[string]struct{}, len(locals))
 	candidates := make([]Candidate, 0, len(locals)+len(remotes))
