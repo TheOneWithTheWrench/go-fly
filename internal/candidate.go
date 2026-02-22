@@ -24,8 +24,10 @@ type Candidate struct {
 //
 // Remote candidates that match a local repo name are skipped to avoid duplicates.
 func Build(locals []Entry, remotes []Repo) []Candidate {
-	localNames := make(map[string]struct{}, len(locals))
-	candidates := make([]Candidate, 0, len(locals)+len(remotes))
+	var (
+		localNames = make(map[string]struct{}, len(locals))
+		candidates = make([]Candidate, 0, len(locals)+len(remotes))
+	)
 
 	for _, entry := range locals {
 		name := entry.Name
