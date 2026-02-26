@@ -1,0 +1,193 @@
+package zoxide_test
+
+import (
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	"github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/zoxide"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSourceLoad(t *testing.T) {
+	t.Run("return no repos tracked when zoxide has no entries", func(t *testing.T) {
+		var (
+			sut, err = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+				return nil, nil
+			}})
+		)
+		require.NoError(t, err)
+
+		_, loadErr := sut.Load("")
+
+		assert.ErrorIs(t, loadErr, internal.ErrNoReposTracked)
+	})
+
+	t.Run("filter and map zoxide matches to local candidates", func(t *testing.T) {
+		var (
+			root      = t.TempDir()
+			alphaPath = filepath.Join(root, "alpha")
+			betaPath  = filepath.Join(root, "beta")
+		)
+		require.NoError(t, os.MkdirAll(filepath.Join(alphaPath, ".git"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(betaPath, ".git"), 0o755))
+
+		var (
+			sut, err = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+				return []zoxide.Match{{Path: alphaPath, Score: 20}, {Path: betaPath, Score: 10}}, nil
+			}})
+		)
+		require.NoError(t, err)
+
+		result, loadErr := sut.Load("alp")
+
+		require.NoError(t, loadErr)
+		require.Len(t, result, 1)
+		assert.Equal(t, alphaPath, result[0].Meta[internal.CandidateMetaPath])
+		assert.Equal(t, 20.0, result[0].Signals[internal.CandidateSignalZoxideScore])
+		assert.Equal(t, internal.CandidateSourceZoxide, result[0].Meta[internal.CandidateMetaSource])
+		assert.Contains(t, result[0].Meta[internal.CandidateMetaLabel], "[zoxide]")
+	})
+
+	t.Run("skip non git directories", func(t *testing.T) {
+		var (
+			root    = t.TempDir()
+			invalid = filepath.Join(root, "plain-dir")
+		)
+		require.NoError(t, os.MkdirAll(invalid, 0o755))
+
+		var (
+			sut, err = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+				return []zoxide.Match{{Path: invalid, Score: 42}}, nil
+			}})
+		)
+		require.NoError(t, err)
+
+		result, loadErr := sut.Load("")
+
+		require.NoError(t, loadErr)
+		assert.Empty(t, result)
+	})
+
+	t.Run("propagate lister errors", func(t *testing.T) {
+		var (
+			expectedErr = errors.New("boom")
+			sut, err    = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+				return nil, expectedErr
+			}})
+		)
+		require.NoError(t, err)
+
+		_, loadErr := sut.Load("")
+
+		assert.ErrorIs(t, loadErr, expectedErr)
+	})
+}
+
+func TestCommandLister(t *testing.T) {
+	t.Run("parse zoxide command output", func(t *testing.T) {
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				assert.Equal(t, "zoxide", name)
+				assert.Equal(t, []string{"query", "--list", "--score"}, args)
+				return []byte("99 /tmp/repo\n1.5 /tmp/with space\ninvalid line\n"), nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		result, listErr := sut.List(context.Background())
+
+		require.NoError(t, listErr)
+		require.Len(t, result, 2)
+		assert.Equal(t, 99.0, result[0].Score)
+		assert.Equal(t, "/tmp/repo", result[0].Path)
+		assert.Equal(t, 1.5, result[1].Score)
+		assert.Equal(t, "/tmp/with space", result[1].Path)
+	})
+
+	t.Run("fallback to z shell function when zoxide binary missing", func(t *testing.T) {
+		t.Setenv("SHELL", "zsh")
+
+		var (
+			calls  = 0
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				calls++
+				if calls == 1 {
+					assert.Equal(t, "zoxide", name)
+					assert.Equal(t, []string{"query", "--list", "--score"}, args)
+					return nil, &exec.Error{Name: "zoxide", Err: exec.ErrNotFound}
+				}
+				if calls == 2 {
+					assert.Equal(t, "z", name)
+					assert.Equal(t, []string{"-l"}, args)
+					return nil, &exec.Error{Name: "z", Err: exec.ErrNotFound}
+				}
+
+				assert.Equal(t, "zsh", name)
+				assert.Equal(t, []string{"-ic", "z -l"}, args)
+				return []byte("10 /tmp/repo\n"), nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		result, listErr := sut.List(context.Background())
+
+		require.NoError(t, listErr)
+		require.Len(t, result, 1)
+		assert.Equal(t, "/tmp/repo", result[0].Path)
+		assert.Equal(t, 10.0, result[0].Score)
+		assert.Equal(t, 3, calls)
+	})
+
+	t.Run("fallback to direct z command when zoxide binary missing", func(t *testing.T) {
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				if name == "zoxide" {
+					assert.Equal(t, []string{"query", "--list", "--score"}, args)
+					return nil, &exec.Error{Name: "zoxide", Err: exec.ErrNotFound}
+				}
+
+				assert.Equal(t, "z", name)
+				assert.Equal(t, []string{"-l"}, args)
+				return []byte("/tmp/repo\n/tmp/second\n"), nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		result, listErr := sut.List(context.Background())
+
+		require.NoError(t, listErr)
+		require.Len(t, result, 2)
+		assert.Equal(t, "/tmp/repo", result[0].Path)
+		assert.Equal(t, 2.0, result[0].Score)
+		assert.Equal(t, "/tmp/second", result[1].Path)
+		assert.Equal(t, 1.0, result[1].Score)
+	})
+
+	t.Run("do not fallback on non not-found errors", func(t *testing.T) {
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				return nil, errors.New("permission denied")
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		_, listErr := sut.List(context.Background())
+
+		require.Error(t, listErr)
+		assert.Contains(t, listErr.Error(), "permission denied")
+	})
+}
