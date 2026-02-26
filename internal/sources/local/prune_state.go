@@ -1,4 +1,4 @@
-package internal
+package local
 
 import (
 	"encoding/json"
@@ -7,11 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-)
 
-type PruneState struct {
-	LastPrunedAt time.Time `json:"last_pruned_at"`
-}
+	"github.com/TheOneWithTheWrench/go-fly/internal"
+)
 
 type PruneStateStore struct {
 	path string
@@ -21,8 +19,14 @@ func NewPruneStateStore(path string) *PruneStateStore {
 	return &PruneStateStore{path: path}
 }
 
+const pruneAppName = "fly"
+
+type PruneState struct {
+	LastPrunedAt time.Time `json:"last_pruned_at"`
+}
+
 func DefaultPruneStateStore() (*PruneStateStore, error) {
-	baseDir, err := CacheDir(remoteAppName)
+	baseDir, err := internal.CacheDir(pruneAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
@@ -53,7 +57,7 @@ func (s *PruneStateStore) Save(state PruneState) error {
 		return fmt.Errorf("marshal prune state: %w", err)
 	}
 
-	if err := WriteFile(s.path, data, 0o644); err != nil {
+	if err := internal.WriteFile(s.path, data, 0o644); err != nil {
 		return fmt.Errorf("write prune state: %w", err)
 	}
 

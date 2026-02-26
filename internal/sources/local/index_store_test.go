@@ -1,18 +1,19 @@
-package internal_test
+package local_test
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStoreLoad(t *testing.T) {
 	var (
-		newStore = func(path string) *internal.IndexStore {
-			return internal.NewIndexStore(path)
+		newStore = func(path string) *local.IndexStore {
+			return local.NewIndexStore(path)
 		}
 	)
 
@@ -31,8 +32,8 @@ func TestStoreLoad(t *testing.T) {
 
 func TestStoreUpsert(t *testing.T) {
 	var (
-		newStore = func(path string) *internal.IndexStore {
-			return internal.NewIndexStore(path)
+		newStore = func(path string) *local.IndexStore {
+			return local.NewIndexStore(path)
 		}
 	)
 
@@ -62,8 +63,8 @@ func TestStoreUpsert(t *testing.T) {
 
 func TestStoreSaveLoad(t *testing.T) {
 	var (
-		newStore = func(path string) *internal.IndexStore {
-			return internal.NewIndexStore(path)
+		newStore = func(path string) *local.IndexStore {
+			return local.NewIndexStore(path)
 		}
 	)
 

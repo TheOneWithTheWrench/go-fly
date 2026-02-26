@@ -1,4 +1,4 @@
-package internal_test
+package remote_test
 
 import (
 	"path/filepath"
@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStore(t *testing.T) {
 	var (
-		newStore = func(path string) *internal.RemoteStore {
-			return internal.NewRemoteStore(path)
+		newStore = func(path string) *remote.RemoteStore {
+			return remote.NewRemoteStore(path)
 		}
 	)
 
@@ -36,7 +37,7 @@ func TestStore(t *testing.T) {
 			path  = filepath.Join(t.TempDir(), "remote.json")
 			sut   = newStore(path)
 			when  = time.Date(2026, 2, 19, 10, 30, 0, 0, time.UTC)
-			cache = internal.Cache{
+			cache = remote.Cache{
 				FetchedAt: when,
 				Repos: []internal.Repo{
 					{Name: "repo", FullName: "acme/repo", SSHURL: "git@github.com:acme/repo.git"},

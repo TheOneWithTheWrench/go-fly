@@ -8,15 +8,15 @@ func (f PickerFunc) Pick(query string, candidates []Candidate) (Candidate, bool,
 	return f(query, candidates)
 }
 
-type RefreshFunc func()
+type RefresherFunc func()
 
-func (f RefreshFunc) Launch() {
+func (f RefresherFunc) Launch() {
 	f()
 }
 
-type PruneFunc func()
+type PrunerFunc func()
 
-func (f PruneFunc) Launch() {
+func (f PrunerFunc) Launch() {
 	f()
 }
 

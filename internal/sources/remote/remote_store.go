@@ -1,4 +1,4 @@
-package internal
+package remote
 
 import (
 	"encoding/json"
@@ -7,17 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/TheOneWithTheWrench/go-fly/internal"
 )
 
-type Repo struct {
-	Name     string `json:"name"`
-	FullName string `json:"full_name"`
-	SSHURL   string `json:"ssh_url"`
-}
-
 type Cache struct {
-	FetchedAt time.Time `json:"fetched_at"`
-	Repos     []Repo    `json:"repos"`
+	FetchedAt time.Time       `json:"fetched_at"`
+	Repos     []internal.Repo `json:"repos"`
 }
 
 type RemoteStore struct {
@@ -34,7 +30,7 @@ func NewRemoteStore(path string) *RemoteStore {
 }
 
 func DefaultRemoteStore() (*RemoteStore, error) {
-	baseDir, err := CacheDir(remoteAppName)
+	baseDir, err := internal.CacheDir(remoteAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
@@ -66,7 +62,7 @@ func (s *RemoteStore) Save(cache Cache) error {
 		return fmt.Errorf("marshal remote cache: %w", err)
 	}
 
-	if err := WriteFile(s.path, data, 0o644); err != nil {
+	if err := internal.WriteFile(s.path, data, 0o644); err != nil {
 		return fmt.Errorf("write remote cache: %w", err)
 	}
 

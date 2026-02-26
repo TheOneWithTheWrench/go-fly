@@ -1,19 +1,19 @@
-package internal_test
+package local_test
 
 import (
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPruneStateStore(t *testing.T) {
 	var (
-		newStore = func(path string) *internal.PruneStateStore {
-			return internal.NewPruneStateStore(path)
+		newStore = func(path string) *local.PruneStateStore {
+			return local.NewPruneStateStore(path)
 		}
 	)
 
@@ -35,7 +35,7 @@ func TestPruneStateStore(t *testing.T) {
 			path  = filepath.Join(t.TempDir(), "prune.json")
 			sut   = newStore(path)
 			when  = time.Date(2026, 2, 19, 13, 0, 0, 0, time.UTC)
-			state = internal.PruneState{LastPrunedAt: when}
+			state = local.PruneState{LastPrunedAt: when}
 		)
 
 		err := sut.Save(state)

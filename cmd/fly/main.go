@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 
 	fly "github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/local"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
 )
 
 func main() {
@@ -63,28 +65,19 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func newApp() (*fly.App, error) {
-	localStore, err := fly.DefaultIndexStore()
-	if err != nil {
-		return nil, err
-	}
-	remoteStore, err := fly.DefaultRemoteStore()
-	if err != nil {
-		return nil, err
-	}
-	pruneStore, err := fly.DefaultPruneStateStore()
-	if err != nil {
-		return nil, err
-	}
 	client := fly.NewClient(newRunnerFunc())
+	localSource, err := local.New(newPrunerFunc())
+	if err != nil {
+		return nil, err
+	}
+	remoteSource, err := remote.New(client, newRefresherFunc())
+	if err != nil {
+		return nil, err
+	}
 
 	appInstance, err := fly.NewApp(
-		localStore,
-		remoteStore,
-		client,
+		[]fly.Source{localSource, remoteSource},
 		newPickerFunc(),
-		newRefreshFunc(),
-		pruneStore,
-		newPruneFunc(),
 		newClonerFunc(),
 	)
 	if err != nil {
@@ -94,12 +87,12 @@ func newApp() (*fly.App, error) {
 	return appInstance, nil
 }
 
-func newPickerFunc() fly.PickerFunc {
+func newPickerFunc() fly.Picker {
 	return fly.PickerFunc(fly.Pick)
 }
 
-func newRefreshFunc() fly.RefreshFunc {
-	return fly.RefreshFunc(func() {
+func newRefresherFunc() fly.RefresherFunc {
+	return fly.RefresherFunc(func() {
 		exe, err := os.Executable()
 		if err != nil {
 			return
@@ -152,8 +145,8 @@ func newClonerFunc() fly.ClonerFunc {
 	})
 }
 
-func newPruneFunc() fly.PruneFunc {
-	return fly.PruneFunc(func() {
+func newPrunerFunc() fly.PrunerFunc {
+	return fly.PrunerFunc(func() {
 		exe, err := os.Executable()
 		if err != nil {
 			return

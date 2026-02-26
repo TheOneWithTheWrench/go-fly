@@ -1,4 +1,4 @@
-package internal
+package local
 
 import (
 	"encoding/json"
@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-)
 
-type Entry struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-}
+	"github.com/TheOneWithTheWrench/go-fly/internal"
+)
 
 type IndexStore struct {
 	path string
@@ -27,7 +24,7 @@ func NewIndexStore(path string) *IndexStore {
 }
 
 func DefaultIndexStore() (*IndexStore, error) {
-	baseDir, err := DataDir(indexAppName)
+	baseDir, err := internal.DataDir(indexAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve data dir: %w", err)
 	}
@@ -35,17 +32,17 @@ func DefaultIndexStore() (*IndexStore, error) {
 	return &IndexStore{path: filepath.Join(baseDir, indexFileName)}, nil
 }
 
-func (s *IndexStore) Load() ([]Entry, error) {
+func (s *IndexStore) Load() ([]internal.Entry, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []Entry{}, nil
+			return []internal.Entry{}, nil
 		}
 
 		return nil, fmt.Errorf("read index: %w", err)
 	}
 
-	var entries []Entry
+	var entries []internal.Entry
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return nil, fmt.Errorf("parse index: %w", err)
 	}
@@ -53,20 +50,20 @@ func (s *IndexStore) Load() ([]Entry, error) {
 	return entries, nil
 }
 
-func (s *IndexStore) Save(entries []Entry) error {
+func (s *IndexStore) Save(entries []internal.Entry) error {
 	data, err := json.Marshal(entries)
 	if err != nil {
 		return fmt.Errorf("marshal index: %w", err)
 	}
 
-	if err := WriteFile(s.path, data, 0o644); err != nil {
+	if err := internal.WriteFile(s.path, data, 0o644); err != nil {
 		return fmt.Errorf("write index: %w", err)
 	}
 
 	return nil
 }
 
-func (s *IndexStore) Upsert(entry Entry) error {
+func (s *IndexStore) Upsert(entry internal.Entry) error {
 	if entry.Path == "" {
 		return fmt.Errorf("entry path required")
 	}

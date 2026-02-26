@@ -5,260 +5,9 @@ package internal_test
 
 import (
 	"context"
-	"sync"
-
 	"github.com/TheOneWithTheWrench/go-fly/internal"
+	"sync"
 )
-
-// Ensure, that IndexStorageMock does implement internal.IndexStorage.
-// If this is not the case, regenerate this file with moq.
-var _ internal.IndexStorage = &IndexStorageMock{}
-
-// IndexStorageMock is a mock implementation of internal.IndexStorage.
-//
-//	func TestSomethingThatUsesIndexStorage(t *testing.T) {
-//
-//		// make and configure a mocked internal.IndexStorage
-//		mockedIndexStorage := &IndexStorageMock{
-//			LoadFunc: func() ([]internal.Entry, error) {
-//				panic("mock out the Load method")
-//			},
-//			SaveFunc: func(entrys []internal.Entry) error {
-//				panic("mock out the Save method")
-//			},
-//			UpsertFunc: func(entry internal.Entry) error {
-//				panic("mock out the Upsert method")
-//			},
-//		}
-//
-//		// use mockedIndexStorage in code that requires internal.IndexStorage
-//		// and then make assertions.
-//
-//	}
-type IndexStorageMock struct {
-	// LoadFunc mocks the Load method.
-	LoadFunc func() ([]internal.Entry, error)
-
-	// SaveFunc mocks the Save method.
-	SaveFunc func(entrys []internal.Entry) error
-
-	// UpsertFunc mocks the Upsert method.
-	UpsertFunc func(entry internal.Entry) error
-
-	// calls tracks calls to the methods.
-	calls struct {
-		// Load holds details about calls to the Load method.
-		Load []struct {
-		}
-		// Save holds details about calls to the Save method.
-		Save []struct {
-			// Entrys is the entrys argument value.
-			Entrys []internal.Entry
-		}
-		// Upsert holds details about calls to the Upsert method.
-		Upsert []struct {
-			// Entry is the entry argument value.
-			Entry internal.Entry
-		}
-	}
-	lockLoad   sync.RWMutex
-	lockSave   sync.RWMutex
-	lockUpsert sync.RWMutex
-}
-
-// Load calls LoadFunc.
-func (mock *IndexStorageMock) Load() ([]internal.Entry, error) {
-	if mock.LoadFunc == nil {
-		panic("IndexStorageMock.LoadFunc: method is nil but IndexStorage.Load was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockLoad.Lock()
-	mock.calls.Load = append(mock.calls.Load, callInfo)
-	mock.lockLoad.Unlock()
-	return mock.LoadFunc()
-}
-
-// LoadCalls gets all the calls that were made to Load.
-// Check the length with:
-//
-//	len(mockedIndexStorage.LoadCalls())
-func (mock *IndexStorageMock) LoadCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockLoad.RLock()
-	calls = mock.calls.Load
-	mock.lockLoad.RUnlock()
-	return calls
-}
-
-// Save calls SaveFunc.
-func (mock *IndexStorageMock) Save(entrys []internal.Entry) error {
-	if mock.SaveFunc == nil {
-		panic("IndexStorageMock.SaveFunc: method is nil but IndexStorage.Save was just called")
-	}
-	callInfo := struct {
-		Entrys []internal.Entry
-	}{
-		Entrys: entrys,
-	}
-	mock.lockSave.Lock()
-	mock.calls.Save = append(mock.calls.Save, callInfo)
-	mock.lockSave.Unlock()
-	return mock.SaveFunc(entrys)
-}
-
-// SaveCalls gets all the calls that were made to Save.
-// Check the length with:
-//
-//	len(mockedIndexStorage.SaveCalls())
-func (mock *IndexStorageMock) SaveCalls() []struct {
-	Entrys []internal.Entry
-} {
-	var calls []struct {
-		Entrys []internal.Entry
-	}
-	mock.lockSave.RLock()
-	calls = mock.calls.Save
-	mock.lockSave.RUnlock()
-	return calls
-}
-
-// Upsert calls UpsertFunc.
-func (mock *IndexStorageMock) Upsert(entry internal.Entry) error {
-	if mock.UpsertFunc == nil {
-		panic("IndexStorageMock.UpsertFunc: method is nil but IndexStorage.Upsert was just called")
-	}
-	callInfo := struct {
-		Entry internal.Entry
-	}{
-		Entry: entry,
-	}
-	mock.lockUpsert.Lock()
-	mock.calls.Upsert = append(mock.calls.Upsert, callInfo)
-	mock.lockUpsert.Unlock()
-	return mock.UpsertFunc(entry)
-}
-
-// UpsertCalls gets all the calls that were made to Upsert.
-// Check the length with:
-//
-//	len(mockedIndexStorage.UpsertCalls())
-func (mock *IndexStorageMock) UpsertCalls() []struct {
-	Entry internal.Entry
-} {
-	var calls []struct {
-		Entry internal.Entry
-	}
-	mock.lockUpsert.RLock()
-	calls = mock.calls.Upsert
-	mock.lockUpsert.RUnlock()
-	return calls
-}
-
-// Ensure, that RemoteStorageMock does implement internal.RemoteStorage.
-// If this is not the case, regenerate this file with moq.
-var _ internal.RemoteStorage = &RemoteStorageMock{}
-
-// RemoteStorageMock is a mock implementation of internal.RemoteStorage.
-//
-//	func TestSomethingThatUsesRemoteStorage(t *testing.T) {
-//
-//		// make and configure a mocked internal.RemoteStorage
-//		mockedRemoteStorage := &RemoteStorageMock{
-//			LoadFunc: func() (internal.Cache, bool, error) {
-//				panic("mock out the Load method")
-//			},
-//			SaveFunc: func(cache internal.Cache) error {
-//				panic("mock out the Save method")
-//			},
-//		}
-//
-//		// use mockedRemoteStorage in code that requires internal.RemoteStorage
-//		// and then make assertions.
-//
-//	}
-type RemoteStorageMock struct {
-	// LoadFunc mocks the Load method.
-	LoadFunc func() (internal.Cache, bool, error)
-
-	// SaveFunc mocks the Save method.
-	SaveFunc func(cache internal.Cache) error
-
-	// calls tracks calls to the methods.
-	calls struct {
-		// Load holds details about calls to the Load method.
-		Load []struct {
-		}
-		// Save holds details about calls to the Save method.
-		Save []struct {
-			// Cache is the cache argument value.
-			Cache internal.Cache
-		}
-	}
-	lockLoad sync.RWMutex
-	lockSave sync.RWMutex
-}
-
-// Load calls LoadFunc.
-func (mock *RemoteStorageMock) Load() (internal.Cache, bool, error) {
-	if mock.LoadFunc == nil {
-		panic("RemoteStorageMock.LoadFunc: method is nil but RemoteStorage.Load was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockLoad.Lock()
-	mock.calls.Load = append(mock.calls.Load, callInfo)
-	mock.lockLoad.Unlock()
-	return mock.LoadFunc()
-}
-
-// LoadCalls gets all the calls that were made to Load.
-// Check the length with:
-//
-//	len(mockedRemoteStorage.LoadCalls())
-func (mock *RemoteStorageMock) LoadCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockLoad.RLock()
-	calls = mock.calls.Load
-	mock.lockLoad.RUnlock()
-	return calls
-}
-
-// Save calls SaveFunc.
-func (mock *RemoteStorageMock) Save(cache internal.Cache) error {
-	if mock.SaveFunc == nil {
-		panic("RemoteStorageMock.SaveFunc: method is nil but RemoteStorage.Save was just called")
-	}
-	callInfo := struct {
-		Cache internal.Cache
-	}{
-		Cache: cache,
-	}
-	mock.lockSave.Lock()
-	mock.calls.Save = append(mock.calls.Save, callInfo)
-	mock.lockSave.Unlock()
-	return mock.SaveFunc(cache)
-}
-
-// SaveCalls gets all the calls that were made to Save.
-// Check the length with:
-//
-//	len(mockedRemoteStorage.SaveCalls())
-func (mock *RemoteStorageMock) SaveCalls() []struct {
-	Cache internal.Cache
-} {
-	var calls []struct {
-		Cache internal.Cache
-	}
-	mock.lockSave.RLock()
-	calls = mock.calls.Save
-	mock.lockSave.RUnlock()
-	return calls
-}
 
 // Ensure, that RemoteFetcherMock does implement internal.RemoteFetcher.
 // If this is not the case, regenerate this file with moq.
@@ -398,26 +147,26 @@ func (mock *PickerMock) PickCalls() []struct {
 	return calls
 }
 
-// Ensure, that RefreshLauncherMock does implement internal.RefreshLauncher.
+// Ensure, that RefresherMock does implement internal.Refresher.
 // If this is not the case, regenerate this file with moq.
-var _ internal.RefreshLauncher = &RefreshLauncherMock{}
+var _ internal.Refresher = &RefresherMock{}
 
-// RefreshLauncherMock is a mock implementation of internal.RefreshLauncher.
+// RefresherMock is a mock implementation of internal.Refresher.
 //
-//	func TestSomethingThatUsesRefreshLauncher(t *testing.T) {
+//	func TestSomethingThatUsesRefresher(t *testing.T) {
 //
-//		// make and configure a mocked internal.RefreshLauncher
-//		mockedRefreshLauncher := &RefreshLauncherMock{
+//		// make and configure a mocked internal.Refresher
+//		mockedRefresher := &RefresherMock{
 //			LaunchFunc: func()  {
 //				panic("mock out the Launch method")
 //			},
 //		}
 //
-//		// use mockedRefreshLauncher in code that requires internal.RefreshLauncher
+//		// use mockedRefresher in code that requires internal.Refresher
 //		// and then make assertions.
 //
 //	}
-type RefreshLauncherMock struct {
+type RefresherMock struct {
 	// LaunchFunc mocks the Launch method.
 	LaunchFunc func()
 
@@ -431,9 +180,9 @@ type RefreshLauncherMock struct {
 }
 
 // Launch calls LaunchFunc.
-func (mock *RefreshLauncherMock) Launch() {
+func (mock *RefresherMock) Launch() {
 	if mock.LaunchFunc == nil {
-		panic("RefreshLauncherMock.LaunchFunc: method is nil but RefreshLauncher.Launch was just called")
+		panic("RefresherMock.LaunchFunc: method is nil but Refresher.Launch was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -446,8 +195,8 @@ func (mock *RefreshLauncherMock) Launch() {
 // LaunchCalls gets all the calls that were made to Launch.
 // Check the length with:
 //
-//	len(mockedRefreshLauncher.LaunchCalls())
-func (mock *RefreshLauncherMock) LaunchCalls() []struct {
+//	len(mockedRefresher.LaunchCalls())
+func (mock *RefresherMock) LaunchCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -457,129 +206,26 @@ func (mock *RefreshLauncherMock) LaunchCalls() []struct {
 	return calls
 }
 
-// Ensure, that PruneStateStorageMock does implement internal.PruneStateStorage.
+// Ensure, that PrunerMock does implement internal.Pruner.
 // If this is not the case, regenerate this file with moq.
-var _ internal.PruneStateStorage = &PruneStateStorageMock{}
+var _ internal.Pruner = &PrunerMock{}
 
-// PruneStateStorageMock is a mock implementation of internal.PruneStateStorage.
+// PrunerMock is a mock implementation of internal.Pruner.
 //
-//	func TestSomethingThatUsesPruneStateStorage(t *testing.T) {
+//	func TestSomethingThatUsesPruner(t *testing.T) {
 //
-//		// make and configure a mocked internal.PruneStateStorage
-//		mockedPruneStateStorage := &PruneStateStorageMock{
-//			LoadFunc: func() (internal.PruneState, bool, error) {
-//				panic("mock out the Load method")
-//			},
-//			SaveFunc: func(pruneState internal.PruneState) error {
-//				panic("mock out the Save method")
-//			},
-//		}
-//
-//		// use mockedPruneStateStorage in code that requires internal.PruneStateStorage
-//		// and then make assertions.
-//
-//	}
-type PruneStateStorageMock struct {
-	// LoadFunc mocks the Load method.
-	LoadFunc func() (internal.PruneState, bool, error)
-
-	// SaveFunc mocks the Save method.
-	SaveFunc func(pruneState internal.PruneState) error
-
-	// calls tracks calls to the methods.
-	calls struct {
-		// Load holds details about calls to the Load method.
-		Load []struct {
-		}
-		// Save holds details about calls to the Save method.
-		Save []struct {
-			// PruneState is the pruneState argument value.
-			PruneState internal.PruneState
-		}
-	}
-	lockLoad sync.RWMutex
-	lockSave sync.RWMutex
-}
-
-// Load calls LoadFunc.
-func (mock *PruneStateStorageMock) Load() (internal.PruneState, bool, error) {
-	if mock.LoadFunc == nil {
-		panic("PruneStateStorageMock.LoadFunc: method is nil but PruneStateStorage.Load was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockLoad.Lock()
-	mock.calls.Load = append(mock.calls.Load, callInfo)
-	mock.lockLoad.Unlock()
-	return mock.LoadFunc()
-}
-
-// LoadCalls gets all the calls that were made to Load.
-// Check the length with:
-//
-//	len(mockedPruneStateStorage.LoadCalls())
-func (mock *PruneStateStorageMock) LoadCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockLoad.RLock()
-	calls = mock.calls.Load
-	mock.lockLoad.RUnlock()
-	return calls
-}
-
-// Save calls SaveFunc.
-func (mock *PruneStateStorageMock) Save(pruneState internal.PruneState) error {
-	if mock.SaveFunc == nil {
-		panic("PruneStateStorageMock.SaveFunc: method is nil but PruneStateStorage.Save was just called")
-	}
-	callInfo := struct {
-		PruneState internal.PruneState
-	}{
-		PruneState: pruneState,
-	}
-	mock.lockSave.Lock()
-	mock.calls.Save = append(mock.calls.Save, callInfo)
-	mock.lockSave.Unlock()
-	return mock.SaveFunc(pruneState)
-}
-
-// SaveCalls gets all the calls that were made to Save.
-// Check the length with:
-//
-//	len(mockedPruneStateStorage.SaveCalls())
-func (mock *PruneStateStorageMock) SaveCalls() []struct {
-	PruneState internal.PruneState
-} {
-	var calls []struct {
-		PruneState internal.PruneState
-	}
-	mock.lockSave.RLock()
-	calls = mock.calls.Save
-	mock.lockSave.RUnlock()
-	return calls
-}
-
-// Ensure, that PruneLauncherMock does implement internal.PruneLauncher.
-// If this is not the case, regenerate this file with moq.
-var _ internal.PruneLauncher = &PruneLauncherMock{}
-
-// PruneLauncherMock is a mock implementation of internal.PruneLauncher.
-//
-//	func TestSomethingThatUsesPruneLauncher(t *testing.T) {
-//
-//		// make and configure a mocked internal.PruneLauncher
-//		mockedPruneLauncher := &PruneLauncherMock{
+//		// make and configure a mocked internal.Pruner
+//		mockedPruner := &PrunerMock{
 //			LaunchFunc: func()  {
 //				panic("mock out the Launch method")
 //			},
 //		}
 //
-//		// use mockedPruneLauncher in code that requires internal.PruneLauncher
+//		// use mockedPruner in code that requires internal.Pruner
 //		// and then make assertions.
 //
 //	}
-type PruneLauncherMock struct {
+type PrunerMock struct {
 	// LaunchFunc mocks the Launch method.
 	LaunchFunc func()
 
@@ -593,9 +239,9 @@ type PruneLauncherMock struct {
 }
 
 // Launch calls LaunchFunc.
-func (mock *PruneLauncherMock) Launch() {
+func (mock *PrunerMock) Launch() {
 	if mock.LaunchFunc == nil {
-		panic("PruneLauncherMock.LaunchFunc: method is nil but PruneLauncher.Launch was just called")
+		panic("PrunerMock.LaunchFunc: method is nil but Pruner.Launch was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -608,8 +254,8 @@ func (mock *PruneLauncherMock) Launch() {
 // LaunchCalls gets all the calls that were made to Launch.
 // Check the length with:
 //
-//	len(mockedPruneLauncher.LaunchCalls())
-func (mock *PruneLauncherMock) LaunchCalls() []struct {
+//	len(mockedPruner.LaunchCalls())
+func (mock *PrunerMock) LaunchCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -760,5 +406,328 @@ func (mock *RunnerMock) RunCalls() []struct {
 	mock.lockRun.RLock()
 	calls = mock.calls.Run
 	mock.lockRun.RUnlock()
+	return calls
+}
+
+// Ensure, that SourceMock does implement internal.Source.
+// If this is not the case, regenerate this file with moq.
+var _ internal.Source = &SourceMock{}
+
+// SourceMock is a mock implementation of internal.Source.
+//
+//	func TestSomethingThatUsesSource(t *testing.T) {
+//
+//		// make and configure a mocked internal.Source
+//		mockedSource := &SourceMock{
+//			LoadFunc: func(query string) ([]internal.Candidate, error) {
+//				panic("mock out the Load method")
+//			},
+//		}
+//
+//		// use mockedSource in code that requires internal.Source
+//		// and then make assertions.
+//
+//	}
+type SourceMock struct {
+	// LoadFunc mocks the Load method.
+	LoadFunc func(query string) ([]internal.Candidate, error)
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Load holds details about calls to the Load method.
+		Load []struct {
+			// Query is the query argument value.
+			Query string
+		}
+	}
+	lockLoad sync.RWMutex
+}
+
+// Load calls LoadFunc.
+func (mock *SourceMock) Load(query string) ([]internal.Candidate, error) {
+	if mock.LoadFunc == nil {
+		panic("SourceMock.LoadFunc: method is nil but Source.Load was just called")
+	}
+	callInfo := struct {
+		Query string
+	}{
+		Query: query,
+	}
+	mock.lockLoad.Lock()
+	mock.calls.Load = append(mock.calls.Load, callInfo)
+	mock.lockLoad.Unlock()
+	return mock.LoadFunc(query)
+}
+
+// LoadCalls gets all the calls that were made to Load.
+// Check the length with:
+//
+//	len(mockedSource.LoadCalls())
+func (mock *SourceMock) LoadCalls() []struct {
+	Query string
+} {
+	var calls []struct {
+		Query string
+	}
+	mock.lockLoad.RLock()
+	calls = mock.calls.Load
+	mock.lockLoad.RUnlock()
+	return calls
+}
+
+// Ensure, that RefreshableMock does implement internal.Refreshable.
+// If this is not the case, regenerate this file with moq.
+var _ internal.Refreshable = &RefreshableMock{}
+
+// RefreshableMock is a mock implementation of internal.Refreshable.
+//
+//	func TestSomethingThatUsesRefreshable(t *testing.T) {
+//
+//		// make and configure a mocked internal.Refreshable
+//		mockedRefreshable := &RefreshableMock{
+//			RefreshFunc: func(contextMoqParam context.Context) error {
+//				panic("mock out the Refresh method")
+//			},
+//		}
+//
+//		// use mockedRefreshable in code that requires internal.Refreshable
+//		// and then make assertions.
+//
+//	}
+type RefreshableMock struct {
+	// RefreshFunc mocks the Refresh method.
+	RefreshFunc func(contextMoqParam context.Context) error
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Refresh holds details about calls to the Refresh method.
+		Refresh []struct {
+			// ContextMoqParam is the contextMoqParam argument value.
+			ContextMoqParam context.Context
+		}
+	}
+	lockRefresh sync.RWMutex
+}
+
+// Refresh calls RefreshFunc.
+func (mock *RefreshableMock) Refresh(contextMoqParam context.Context) error {
+	if mock.RefreshFunc == nil {
+		panic("RefreshableMock.RefreshFunc: method is nil but Refreshable.Refresh was just called")
+	}
+	callInfo := struct {
+		ContextMoqParam context.Context
+	}{
+		ContextMoqParam: contextMoqParam,
+	}
+	mock.lockRefresh.Lock()
+	mock.calls.Refresh = append(mock.calls.Refresh, callInfo)
+	mock.lockRefresh.Unlock()
+	return mock.RefreshFunc(contextMoqParam)
+}
+
+// RefreshCalls gets all the calls that were made to Refresh.
+// Check the length with:
+//
+//	len(mockedRefreshable.RefreshCalls())
+func (mock *RefreshableMock) RefreshCalls() []struct {
+	ContextMoqParam context.Context
+} {
+	var calls []struct {
+		ContextMoqParam context.Context
+	}
+	mock.lockRefresh.RLock()
+	calls = mock.calls.Refresh
+	mock.lockRefresh.RUnlock()
+	return calls
+}
+
+// Ensure, that TrackableMock does implement internal.Trackable.
+// If this is not the case, regenerate this file with moq.
+var _ internal.Trackable = &TrackableMock{}
+
+// TrackableMock is a mock implementation of internal.Trackable.
+//
+//	func TestSomethingThatUsesTrackable(t *testing.T) {
+//
+//		// make and configure a mocked internal.Trackable
+//		mockedTrackable := &TrackableMock{
+//			TrackFunc: func(s string) error {
+//				panic("mock out the Track method")
+//			},
+//		}
+//
+//		// use mockedTrackable in code that requires internal.Trackable
+//		// and then make assertions.
+//
+//	}
+type TrackableMock struct {
+	// TrackFunc mocks the Track method.
+	TrackFunc func(s string) error
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Track holds details about calls to the Track method.
+		Track []struct {
+			// S is the s argument value.
+			S string
+		}
+	}
+	lockTrack sync.RWMutex
+}
+
+// Track calls TrackFunc.
+func (mock *TrackableMock) Track(s string) error {
+	if mock.TrackFunc == nil {
+		panic("TrackableMock.TrackFunc: method is nil but Trackable.Track was just called")
+	}
+	callInfo := struct {
+		S string
+	}{
+		S: s,
+	}
+	mock.lockTrack.Lock()
+	mock.calls.Track = append(mock.calls.Track, callInfo)
+	mock.lockTrack.Unlock()
+	return mock.TrackFunc(s)
+}
+
+// TrackCalls gets all the calls that were made to Track.
+// Check the length with:
+//
+//	len(mockedTrackable.TrackCalls())
+func (mock *TrackableMock) TrackCalls() []struct {
+	S string
+} {
+	var calls []struct {
+		S string
+	}
+	mock.lockTrack.RLock()
+	calls = mock.calls.Track
+	mock.lockTrack.RUnlock()
+	return calls
+}
+
+// Ensure, that PrunableMock does implement internal.Prunable.
+// If this is not the case, regenerate this file with moq.
+var _ internal.Prunable = &PrunableMock{}
+
+// PrunableMock is a mock implementation of internal.Prunable.
+//
+//	func TestSomethingThatUsesPrunable(t *testing.T) {
+//
+//		// make and configure a mocked internal.Prunable
+//		mockedPrunable := &PrunableMock{
+//			PruneFunc: func() error {
+//				panic("mock out the Prune method")
+//			},
+//		}
+//
+//		// use mockedPrunable in code that requires internal.Prunable
+//		// and then make assertions.
+//
+//	}
+type PrunableMock struct {
+	// PruneFunc mocks the Prune method.
+	PruneFunc func() error
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Prune holds details about calls to the Prune method.
+		Prune []struct {
+		}
+	}
+	lockPrune sync.RWMutex
+}
+
+// Prune calls PruneFunc.
+func (mock *PrunableMock) Prune() error {
+	if mock.PruneFunc == nil {
+		panic("PrunableMock.PruneFunc: method is nil but Prunable.Prune was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockPrune.Lock()
+	mock.calls.Prune = append(mock.calls.Prune, callInfo)
+	mock.lockPrune.Unlock()
+	return mock.PruneFunc()
+}
+
+// PruneCalls gets all the calls that were made to Prune.
+// Check the length with:
+//
+//	len(mockedPrunable.PruneCalls())
+func (mock *PrunableMock) PruneCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockPrune.RLock()
+	calls = mock.calls.Prune
+	mock.lockPrune.RUnlock()
+	return calls
+}
+
+// Ensure, that LocalCleanerMock does implement internal.LocalCleaner.
+// If this is not the case, regenerate this file with moq.
+var _ internal.LocalCleaner = &LocalCleanerMock{}
+
+// LocalCleanerMock is a mock implementation of internal.LocalCleaner.
+//
+//	func TestSomethingThatUsesLocalCleaner(t *testing.T) {
+//
+//		// make and configure a mocked internal.LocalCleaner
+//		mockedLocalCleaner := &LocalCleanerMock{
+//			RemoveFunc: func(s string) error {
+//				panic("mock out the Remove method")
+//			},
+//		}
+//
+//		// use mockedLocalCleaner in code that requires internal.LocalCleaner
+//		// and then make assertions.
+//
+//	}
+type LocalCleanerMock struct {
+	// RemoveFunc mocks the Remove method.
+	RemoveFunc func(s string) error
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Remove holds details about calls to the Remove method.
+		Remove []struct {
+			// S is the s argument value.
+			S string
+		}
+	}
+	lockRemove sync.RWMutex
+}
+
+// Remove calls RemoveFunc.
+func (mock *LocalCleanerMock) Remove(s string) error {
+	if mock.RemoveFunc == nil {
+		panic("LocalCleanerMock.RemoveFunc: method is nil but LocalCleaner.Remove was just called")
+	}
+	callInfo := struct {
+		S string
+	}{
+		S: s,
+	}
+	mock.lockRemove.Lock()
+	mock.calls.Remove = append(mock.calls.Remove, callInfo)
+	mock.lockRemove.Unlock()
+	return mock.RemoveFunc(s)
+}
+
+// RemoveCalls gets all the calls that were made to Remove.
+// Check the length with:
+//
+//	len(mockedLocalCleaner.RemoveCalls())
+func (mock *LocalCleanerMock) RemoveCalls() []struct {
+	S string
+} {
+	var calls []struct {
+		S string
+	}
+	mock.lockRemove.RLock()
+	calls = mock.calls.Remove
+	mock.lockRemove.RUnlock()
 	return calls
 }

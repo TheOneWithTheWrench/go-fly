@@ -10,66 +10,79 @@ import (
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/local"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type appDependencies struct {
-	localStore      *IndexStorageMock
-	remoteStore     *RemoteStorageMock
-	remoteFetcher   *RemoteFetcherMock
-	picker          *PickerMock
-	refreshLauncher *RefreshLauncherMock
-	pruneStore      *PruneStateStorageMock
-	pruneLauncher   *PruneLauncherMock
-	cloner          *ClonerMock
+type refreshableSource struct {
+	source      *SourceMock
+	refreshable *RefreshableMock
+}
+
+func (s refreshableSource) Load(query string) ([]internal.Candidate, error) {
+	return s.source.Load(query)
+}
+
+func (s refreshableSource) Refresh(ctx context.Context) error {
+	return s.refreshable.Refresh(ctx)
+}
+
+type prunableSource struct {
+	source   *SourceMock
+	prunable *PrunableMock
+}
+
+func (s prunableSource) Load(query string) ([]internal.Candidate, error) {
+	return s.source.Load(query)
+}
+
+func (s prunableSource) Prune() error {
+	return s.prunable.Prune()
+}
+
+type trackableSource struct {
+	source    *SourceMock
+	trackable *TrackableMock
+}
+
+func (s trackableSource) Load(query string) ([]internal.Candidate, error) {
+	return s.source.Load(query)
+}
+
+func (s trackableSource) Track(path string) error {
+	return s.trackable.Track(path)
+}
+
+type localCleanSource struct {
+	source  *SourceMock
+	cleaner *LocalCleanerMock
+}
+
+func (s localCleanSource) Load(query string) ([]internal.Candidate, error) {
+	return s.source.Load(query)
+}
+
+func (s localCleanSource) Remove(path string) error {
+	return s.cleaner.Remove(path)
 }
 
 var (
-	newDefaultDependencies = func() appDependencies {
-		deps := appDependencies{
-			localStore:      &IndexStorageMock{},
-			remoteStore:     &RemoteStorageMock{},
-			remoteFetcher:   &RemoteFetcherMock{},
-			picker:          &PickerMock{},
-			refreshLauncher: &RefreshLauncherMock{},
-			pruneStore:      &PruneStateStorageMock{},
-			pruneLauncher:   &PruneLauncherMock{},
-			cloner:          &ClonerMock{},
-		}
-
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{}, nil }
-		deps.localStore.SaveFunc = func(entries []internal.Entry) error { return nil }
-		deps.localStore.UpsertFunc = func(entry internal.Entry) error { return nil }
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
-		deps.remoteStore.SaveFunc = func(cache internal.Cache) error { return nil }
-		deps.remoteFetcher.FetchAllFunc = func(ctx context.Context) ([]internal.Repo, error) { return nil, nil }
-		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
-			return internal.Candidate{}, false, nil
-		}
-		deps.refreshLauncher.LaunchFunc = func() {}
-		deps.pruneStore.LoadFunc = func() (internal.PruneState, bool, error) { return internal.PruneState{}, true, nil }
-		deps.pruneStore.SaveFunc = func(state internal.PruneState) error { return nil }
-		deps.pruneLauncher.LaunchFunc = func() {}
-		deps.cloner.CloneFunc = func(repo internal.Repo) (string, error) { return "", nil }
-
-		return deps
-	}
-	newSut = func(t *testing.T, deps appDependencies) *internal.App {
-		app, err := internal.NewApp(
-			deps.localStore,
-			deps.remoteStore,
-			deps.remoteFetcher,
-			deps.picker,
-			deps.refreshLauncher,
-			deps.pruneStore,
-			deps.pruneLauncher,
-			deps.cloner,
-		)
+	newSut = func(t *testing.T, sources []internal.Source, picker internal.Picker, cloner internal.Cloner) *internal.App {
+		app, err := internal.NewApp(sources, picker, cloner)
 		require.NoError(t, err)
 		return app
 	}
 )
+
+func localCandidate(entry internal.Entry) internal.Candidate {
+	return internal.Candidate{Kind: internal.KindLocal, Local: entry}
+}
+
+func remoteCandidate(repo internal.Repo) internal.Candidate {
+	return internal.Candidate{Kind: internal.KindRemote, Remote: repo}
+}
 
 func TestShouldRefresh(t *testing.T) {
 	var (
@@ -77,22 +90,22 @@ func TestShouldRefresh(t *testing.T) {
 	)
 
 	t.Run("return true when cache missing", func(t *testing.T) {
-		got := internal.ShouldRefresh(internal.Cache{FetchedAt: now}, false)
+		got := remote.ShouldRefresh(remote.Cache{FetchedAt: now}, false)
 		assert.True(t, got)
 	})
 
 	t.Run("return true when fetched_at is zero", func(t *testing.T) {
-		got := internal.ShouldRefresh(internal.Cache{}, true)
+		got := remote.ShouldRefresh(remote.Cache{}, true)
 		assert.True(t, got)
 	})
 
 	t.Run("return true when stale", func(t *testing.T) {
-		got := internal.ShouldRefresh(internal.Cache{FetchedAt: now.Add(-internal.RefreshTTL - time.Minute)}, true)
+		got := remote.ShouldRefresh(remote.Cache{FetchedAt: now.Add(-remote.RefreshTTL - time.Minute)}, true)
 		assert.True(t, got)
 	})
 
 	t.Run("return false when fresh", func(t *testing.T) {
-		got := internal.ShouldRefresh(internal.Cache{FetchedAt: now.Add(-time.Minute)}, true)
+		got := remote.ShouldRefresh(remote.Cache{FetchedAt: now.Add(-time.Minute)}, true)
 		assert.False(t, got)
 	})
 }
@@ -103,92 +116,106 @@ func TestShouldPrune(t *testing.T) {
 	)
 
 	t.Run("return true when state missing", func(t *testing.T) {
-		got := internal.ShouldPrune(internal.PruneState{LastPrunedAt: now}, false)
+		got := local.ShouldPrune(local.PruneState{LastPrunedAt: now}, false)
 		assert.True(t, got)
 	})
 
 	t.Run("return true when last_pruned_at is zero", func(t *testing.T) {
-		got := internal.ShouldPrune(internal.PruneState{}, true)
+		got := local.ShouldPrune(local.PruneState{}, true)
 		assert.True(t, got)
 	})
 
 	t.Run("return true when stale", func(t *testing.T) {
-		got := internal.ShouldPrune(internal.PruneState{LastPrunedAt: now.Add(-internal.PruneTTL - time.Minute)}, true)
+		got := local.ShouldPrune(local.PruneState{LastPrunedAt: now.Add(-local.PruneTTL - time.Minute)}, true)
 		assert.True(t, got)
 	})
 
 	t.Run("return false when fresh", func(t *testing.T) {
-		got := internal.ShouldPrune(internal.PruneState{LastPrunedAt: now.Add(-time.Minute)}, true)
+		got := local.ShouldPrune(local.PruneState{LastPrunedAt: now.Add(-time.Minute)}, true)
 		assert.False(t, got)
 	})
 }
 
 func TestRefresh(t *testing.T) {
-	t.Run("fetch and save cache", func(t *testing.T) {
+	t.Run("call refreshable sources", func(t *testing.T) {
 		var (
-			deps   = newDefaultDependencies()
-			appErr error
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			source = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}
+			refresh = &RefreshableMock{RefreshFunc: func(ctx context.Context) error { return nil }}
 		)
 
-		deps.remoteFetcher.FetchAllFunc = func(ctx context.Context) ([]internal.Repo, error) {
-			return []internal.Repo{{Name: "repo", FullName: "acme/repo"}}, nil
-		}
-		deps.remoteStore.SaveFunc = func(cache internal.Cache) error {
-			assert.Len(t, cache.Repos, 1)
-			assert.False(t, cache.FetchedAt.IsZero())
-			return nil
-		}
+		sut := newSut(t, []internal.Source{refreshableSource{source: source, refreshable: refresh}}, picker, cloner)
 
-		sut := newSut(t, deps)
+		err := sut.Refresh(context.Background())
 
-		appErr = sut.Refresh(context.Background())
-
-		require.NoError(t, appErr)
+		require.NoError(t, err)
+		assert.Len(t, refresh.RefreshCalls(), 1)
 	})
 }
 
 func TestQuery(t *testing.T) {
 	t.Run("remove missing local selection", func(t *testing.T) {
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) {
-			return []internal.Entry{{Name: "alpha", Path: "/work/alpha"}}, nil
-		}
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) {
-			return internal.Cache{}, true, nil
-		}
-		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
-			return candidates[0], true, nil
-		}
-		deps.localStore.SaveFunc = func(entries []internal.Entry) error {
-			require.Len(t, entries, 0)
-			return nil
-		}
+		var (
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return []internal.Candidate{localCandidate(internal.Entry{Name: "alpha", Path: "/work/alpha"})}, nil
+			}}
+			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}
+			cleaner = &LocalCleanerMock{RemoveFunc: func(path string) error { return nil }}
+		)
 
-		sut := newSut(t, deps)
+		app, err := internal.NewApp([]internal.Source{
+			localCleanSource{source: local, cleaner: cleaner},
+			remote,
+		}, picker, cloner)
+		require.NoError(t, err)
 
-		err := sut.Query("alpha", &bytes.Buffer{})
+		err = app.Query("alpha", &bytes.Buffer{})
 
 		assert.Error(t, err)
+		removeCalls := cleaner.RemoveCalls()
+		require.Len(t, removeCalls, 1)
+		assert.Equal(t, "/work/alpha", removeCalls[0].S)
 	})
 
 	t.Run("return error when no repos", func(t *testing.T) {
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{}, nil }
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, false, nil }
+		var (
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}
+			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}
+		)
 
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{local, remote}, picker, cloner)
 
 		err := sut.Query("", &bytes.Buffer{})
 
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, internal.ErrNoReposTracked)
 	})
 
 	t.Run("return error when no matches", func(t *testing.T) {
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{{Name: "alpha", Path: "/work/alpha"}}, nil }
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
+		var (
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, nil
+			}}
+			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, nil
+			}}
+		)
 
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{local, remote}, picker, cloner)
 
 		err := sut.Query("zzz", &bytes.Buffer{})
 
@@ -196,19 +223,25 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("return error when clone fails", func(t *testing.T) {
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{}, nil }
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) {
-			return internal.Cache{Repos: []internal.Repo{{Name: "beta", FullName: "acme/beta"}}}, true, nil
-		}
-		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+		var (
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, nil
+			}}
+			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
+			}}
+		)
+
+		picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
 			return candidates[0], true, nil
 		}
-		deps.cloner.CloneFunc = func(repo internal.Repo) (string, error) {
+		cloner.CloneFunc = func(repo internal.Repo) (string, error) {
 			return "", errors.New("boom")
 		}
 
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{local, remote}, picker, cloner)
 
 		err := sut.Query("beta", &bytes.Buffer{})
 
@@ -222,18 +255,20 @@ func TestQuery(t *testing.T) {
 		)
 		require.NoError(t, os.MkdirAll(filepath.Join(valid, ".git"), 0o755))
 
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) {
-			return []internal.Entry{{Name: "alpha", Path: valid}}, nil
-		}
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
-		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+		local := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+			return []internal.Candidate{localCandidate(internal.Entry{Name: "alpha", Path: valid})}, nil
+		}}
+		remote := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+			return nil, internal.ErrNoReposTracked
+		}}
+
+		picker := &PickerMock{PickFunc: func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
 			t.Fatalf("picker should not be called")
 			return internal.Candidate{}, false, nil
-		}
+		}}
 
 		out := &bytes.Buffer{}
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{local, remote}, picker, &ClonerMock{})
 
 		err := sut.Query("alpha", out)
 
@@ -248,17 +283,19 @@ func TestQuery(t *testing.T) {
 		)
 		require.NoError(t, os.MkdirAll(filepath.Join(valid, ".git"), 0o755))
 
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) {
-			return []internal.Entry{{Name: "alpha", Path: valid}}, nil
-		}
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) { return internal.Cache{}, true, nil }
-		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+		local := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+			return []internal.Candidate{localCandidate(internal.Entry{Name: "alpha", Path: valid})}, nil
+		}}
+		remote := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+			return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
+		}}
+
+		picker := &PickerMock{PickFunc: func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
 			return candidates[0], true, nil
-		}
+		}}
 
 		out := &bytes.Buffer{}
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{local, remote}, picker, &ClonerMock{})
 
 		err := sut.Query("alpha", out)
 
@@ -267,66 +304,60 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("clone remote selection", func(t *testing.T) {
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) { return []internal.Entry{}, nil }
-		deps.remoteStore.LoadFunc = func() (internal.Cache, bool, error) {
-			return internal.Cache{Repos: []internal.Repo{{Name: "beta", FullName: "acme/beta"}}}, true, nil
-		}
-		deps.picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+		var (
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}
+			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
+			}}
+			trackable = &TrackableMock{TrackFunc: func(path string) error { return nil }}
+		)
+
+		picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
 			return candidates[0], true, nil
 		}
-		deps.cloner.CloneFunc = func(repo internal.Repo) (string, error) {
+		cloner.CloneFunc = func(repo internal.Repo) (string, error) {
 			return "/work/beta", nil
-		}
-		deps.localStore.UpsertFunc = func(entry internal.Entry) error {
-			assert.Equal(t, "/work/beta", entry.Path)
-			return nil
 		}
 
 		out := &bytes.Buffer{}
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{
+			local,
+			remote,
+			trackableSource{source: &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}, trackable: trackable},
+		}, picker, cloner)
 
 		err := sut.Query("beta", out)
 
 		require.NoError(t, err)
 		assert.Contains(t, out.String(), "/work/beta")
+		trackCalls := trackable.TrackCalls()
+		require.Len(t, trackCalls, 1)
+		assert.Equal(t, "/work/beta", trackCalls[0].S)
 	})
 }
 
 func TestPrune(t *testing.T) {
-	t.Run("remove missing and non-repo entries", func(t *testing.T) {
+	t.Run("call prunable sources", func(t *testing.T) {
 		var (
-			root    = t.TempDir()
-			valid   = filepath.Join(root, "valid")
-			invalid = filepath.Join(root, "invalid")
-			missing = filepath.Join(root, "missing")
+			picker = &PickerMock{}
+			cloner = &ClonerMock{}
+			source = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+				return nil, internal.ErrNoReposTracked
+			}}
+			prunable = &PrunableMock{PruneFunc: func() error { return nil }}
 		)
 
-		require.NoError(t, os.MkdirAll(filepath.Join(valid, ".git"), 0o755))
-		require.NoError(t, os.MkdirAll(invalid, 0o755))
-
-		deps := newDefaultDependencies()
-		deps.localStore.LoadFunc = func() ([]internal.Entry, error) {
-			return []internal.Entry{
-				{Name: "valid", Path: valid},
-				{Name: "invalid", Path: invalid},
-				{Name: "missing", Path: missing},
-			}, nil
-		}
-		deps.localStore.SaveFunc = func(entries []internal.Entry) error {
-			require.Len(t, entries, 1)
-			assert.Equal(t, valid, entries[0].Path)
-			return nil
-		}
-		deps.pruneStore.SaveFunc = func(state internal.PruneState) error {
-			assert.False(t, state.LastPrunedAt.IsZero())
-			return nil
-		}
-
-		sut := newSut(t, deps)
+		sut := newSut(t, []internal.Source{prunableSource{source: source, prunable: prunable}}, picker, cloner)
 
 		err := sut.Prune()
 
 		require.NoError(t, err)
+		assert.Len(t, prunable.PruneCalls(), 1)
 	})
 }
