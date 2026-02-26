@@ -10,15 +10,10 @@ import (
 type App struct {
 	sources []Source
 	picker  Picker
-	cloner  Cloner
-}
-
-type RemoteFetcher interface {
-	FetchAll(context.Context) ([]Repo, error)
 }
 
 type Picker interface {
-	Pick(string, []Candidate) (Candidate, bool, error)
+	Pick(string, []Candidate) (int, bool, error)
 }
 
 type Refresher interface {
@@ -33,21 +28,17 @@ type Cloner interface {
 	Clone(Repo) (string, error)
 }
 
-func NewApp(sources []Source, picker Picker, cloner Cloner) (*App, error) {
+func NewApp(sources []Source, picker Picker) (*App, error) {
 	if len(sources) == 0 {
 		return nil, fmt.Errorf("sources required")
 	}
 	if picker == nil {
 		return nil, fmt.Errorf("picker required")
 	}
-	if cloner == nil {
-		return nil, fmt.Errorf("cloner required")
-	}
 
 	return &App{
 		sources: sources,
 		picker:  picker,
-		cloner:  cloner,
 	}, nil
 }
 
@@ -95,29 +86,16 @@ func (a *App) Query(query string, stdout io.Writer) error {
 		return nil
 	}
 
-	if selected.Kind == KindLocal {
-		valid, err := CheckDestination(selected.Local.Path)
-		if err != nil || !valid {
-			if saveErr := a.removeLocalEntry(selected.Local.Path); saveErr != nil {
-				return saveErr
-			}
-			return fmt.Errorf("repo no longer exists: %s", selected.Local.Path)
-		}
-
-		_, err = fmt.Fprintln(stdout, selected.Local.Path)
-		return err
-	}
-
-	dest, err := a.cloner.Clone(selected.Remote)
+	path, err := a.resolveCandidate(*selected)
 	if err != nil {
 		return err
 	}
 
-	if err := a.Track(dest); err != nil {
+	if err := a.Track(path); err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintln(stdout, dest)
+	_, err = fmt.Fprintln(stdout, path)
 	return err
 }
 
@@ -136,18 +114,23 @@ func (a *App) Prune() error {
 }
 
 func (a *App) selectCandidate(query string, candidates []Candidate) (*Candidate, error) {
-	if len(candidates) == 1 && candidates[0].Kind == KindLocal {
+	if len(candidates) == 1 {
 		selected := candidates[0]
 		return &selected, nil
 	}
 
-	selected, ok, err := a.picker.Pick(query, candidates)
+	selectedIndex, ok, err := a.picker.Pick(query, candidates)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
 		return nil, nil
 	}
+	if selectedIndex < 0 || selectedIndex >= len(candidates) {
+		return nil, nil
+	}
+
+	selected := candidates[selectedIndex]
 
 	return &selected, nil
 }
@@ -167,7 +150,17 @@ func (a *App) loadSources(query string) ([]Candidate, error) {
 			}
 			return nil, err
 		}
-		candidates = append(candidates, result...)
+
+		for _, candidate := range result {
+			sourceName := candidate.Meta[CandidateMetaSource]
+			if sourceName == "" {
+				return nil, fmt.Errorf("candidate source missing")
+			}
+
+			candidate.resolver = source
+
+			candidates = append(candidates, candidate)
+		}
 	}
 
 	if noRepos == len(a.sources) {
@@ -177,16 +170,22 @@ func (a *App) loadSources(query string) ([]Candidate, error) {
 	return candidates, nil
 }
 
-func (a *App) removeLocalEntry(path string) error {
-	for _, source := range a.sources {
-		cleaner, ok := source.(LocalCleaner)
-		if !ok {
-			continue
-		}
-		if err := cleaner.Remove(path); err != nil {
-			return err
-		}
+func (a *App) resolveCandidate(candidate Candidate) (string, error) {
+	if candidate.resolver == nil {
+		return "", fmt.Errorf("no source to resolve candidate")
 	}
 
-	return nil
+	path, err := candidate.resolver.Resolve(candidate)
+	if err != nil {
+		if errors.Is(err, ErrUnsupportedCandidate) {
+			return "", fmt.Errorf("selected source cannot resolve candidate")
+		}
+
+		return "", err
+	}
+	if path == "" {
+		return "", fmt.Errorf("selected source returned empty path")
+	}
+
+	return path, nil
 }

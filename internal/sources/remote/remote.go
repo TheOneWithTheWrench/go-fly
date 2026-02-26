@@ -11,12 +11,17 @@ import (
 
 type Source struct {
 	store         *RemoteStore
-	fetcher       internal.RemoteFetcher
+	fetcher       Fetcher
 	refreshLaunch internal.Refresher
+	cloner        internal.Cloner
 	now           func() time.Time
 }
 
-func New(fetcher internal.RemoteFetcher, refreshLaunch internal.Refresher) (*Source, error) {
+type Fetcher interface {
+	FetchAll(context.Context) ([]internal.Repo, error)
+}
+
+func New(fetcher Fetcher, refreshLaunch internal.Refresher, cloner internal.Cloner) (*Source, error) {
 	store, err := DefaultRemoteStore()
 	if err != nil {
 		return nil, err
@@ -27,11 +32,15 @@ func New(fetcher internal.RemoteFetcher, refreshLaunch internal.Refresher) (*Sou
 	if refreshLaunch == nil {
 		return nil, fmt.Errorf("refresh launcher required")
 	}
+	if cloner == nil {
+		return nil, fmt.Errorf("cloner required")
+	}
 
 	return &Source{
 		store:         store,
 		fetcher:       fetcher,
 		refreshLaunch: refreshLaunch,
+		cloner:        cloner,
 		now:           time.Now,
 	}, nil
 }
@@ -55,7 +64,14 @@ func (s *Source) Load(query string) ([]internal.Candidate, error) {
 
 	candidates := make([]internal.Candidate, 0, len(filtered))
 	for _, repo := range filtered {
-		candidates = append(candidates, internal.Candidate{Kind: internal.KindRemote, Remote: repo})
+		candidates = append(candidates, internal.Candidate{
+			Meta: map[string]string{
+				internal.CandidateMetaSource:   internal.CandidateSourceRemote,
+				internal.CandidateMetaName:     repo.Name,
+				internal.CandidateMetaFullName: repo.FullName,
+				internal.CandidateMetaSSHURL:   repo.SSHURL,
+			},
+		})
 	}
 
 	return candidates, nil
@@ -78,6 +94,29 @@ func FilterRepos(query string, repos []internal.Repo) []internal.Repo {
 	}
 
 	return filtered
+}
+
+func (s *Source) Resolve(candidate internal.Candidate) (string, error) {
+	source := candidate.Meta[internal.CandidateMetaSource]
+	if source != internal.CandidateSourceRemote {
+		return "", internal.ErrUnsupportedCandidate
+	}
+
+	repo := internal.Repo{
+		Name:     candidate.Meta[internal.CandidateMetaName],
+		FullName: candidate.Meta[internal.CandidateMetaFullName],
+		SSHURL:   candidate.Meta[internal.CandidateMetaSSHURL],
+	}
+	if repo.FullName == "" {
+		return "", internal.ErrUnsupportedCandidate
+	}
+
+	path, err := s.cloner.Clone(repo)
+	if err != nil {
+		return "", err
+	}
+
+	return path, nil
 }
 
 func (s *Source) Refresh(ctx context.Context) error {

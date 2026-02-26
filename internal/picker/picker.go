@@ -3,6 +3,7 @@ package picker
 import (
 	"fmt"
 
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/item"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters/minipick"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -14,8 +15,11 @@ import (
 type Result struct {
 	Index int
 	Value string
+	Item  Item
 	OK    bool
 }
+
+type Item = item.Item
 
 func defaultConfig() Config {
 	return Config{
@@ -27,7 +31,7 @@ func defaultConfig() Config {
 	}
 }
 
-func Run(items []string, query string, opts ...Option) (Result, error) {
+func Run(items []Item, query string, opts ...Option) (Result, error) {
 	config := defaultConfig()
 	for _, opt := range opts {
 		opt(&config)
@@ -52,10 +56,11 @@ func Run(items []string, query string, opts ...Option) (Result, error) {
 		return Result{}, fmt.Errorf("unexpected model type")
 	}
 
-	return Result{Index: finalModel.selectedIndex, Value: finalModel.selected, OK: finalModel.ok}, nil
+	result := finalModel.Result()
+	return Result{Index: result.Index, Value: result.Value, Item: result.Item, OK: result.OK}, nil
 }
 
-func newModel(items []string, query string, config Config) Model {
+func newModel(items []Item, query string, config Config) Model {
 	input := textinput.New()
 	input.Prompt = config.Prompt
 	input.SetValue(query)

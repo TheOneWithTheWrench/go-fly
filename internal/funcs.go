@@ -2,9 +2,9 @@ package internal
 
 import "context"
 
-type PickerFunc func(string, []Candidate) (Candidate, bool, error)
+type PickerFunc func(string, []Candidate) (int, bool, error)
 
-func (f PickerFunc) Pick(query string, candidates []Candidate) (Candidate, bool, error) {
+func (f PickerFunc) Pick(query string, candidates []Candidate) (int, bool, error) {
 	return f(query, candidates)
 }
 

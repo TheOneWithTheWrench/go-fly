@@ -12,13 +12,21 @@ import (
 
 func TestModel(t *testing.T) {
 	var (
-		newTestModel = func(items []string, query string, opts ...Option) Model {
+		newTestModelWithItems = func(items []Item, query string, opts ...Option) Model {
 			config := defaultConfig()
 			for _, opt := range opts {
 				opt(&config)
 			}
 
 			return newModel(items, query, config)
+		}
+		newTestModel = func(items []string, query string, opts ...Option) Model {
+			pickerItems := make([]Item, len(items))
+			for i, value := range items {
+				pickerItems[i] = Item{Value: value}
+			}
+
+			return newTestModelWithItems(pickerItems, query, opts...)
 		}
 		sendKey = func(model Model, key tea.KeyType) Model {
 			msg := tea.KeyMsg{Type: key}
@@ -106,6 +114,26 @@ func TestModel(t *testing.T) {
 		result := model.Result()
 		assert.False(t, result.OK)
 		assert.Empty(t, result.Value)
+	})
+
+	t.Run("select keeps item metadata and signals", func(t *testing.T) {
+		items := []Item{{
+			Value:   "alpha",
+			Signals: map[string]float64{"source.zoxide": 91.3},
+			Meta: map[string]string{
+				"kind": "local",
+				"path": "/tmp/alpha",
+			},
+		}}
+
+		model := newTestModelWithItems(items, "")
+		model = sendKey(model, tea.KeyEnter)
+
+		result := model.Result()
+		require.True(t, result.OK)
+		assert.Equal(t, "alpha", result.Value)
+		assert.Equal(t, "local", result.Item.Meta["kind"])
+		assert.Equal(t, 91.3, result.Item.Signals["source.zoxide"])
 	})
 
 	t.Run("window bottom places input after list", func(t *testing.T) {

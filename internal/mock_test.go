@@ -9,72 +9,6 @@ import (
 	"sync"
 )
 
-// Ensure, that RemoteFetcherMock does implement internal.RemoteFetcher.
-// If this is not the case, regenerate this file with moq.
-var _ internal.RemoteFetcher = &RemoteFetcherMock{}
-
-// RemoteFetcherMock is a mock implementation of internal.RemoteFetcher.
-//
-//	func TestSomethingThatUsesRemoteFetcher(t *testing.T) {
-//
-//		// make and configure a mocked internal.RemoteFetcher
-//		mockedRemoteFetcher := &RemoteFetcherMock{
-//			FetchAllFunc: func(contextMoqParam context.Context) ([]internal.Repo, error) {
-//				panic("mock out the FetchAll method")
-//			},
-//		}
-//
-//		// use mockedRemoteFetcher in code that requires internal.RemoteFetcher
-//		// and then make assertions.
-//
-//	}
-type RemoteFetcherMock struct {
-	// FetchAllFunc mocks the FetchAll method.
-	FetchAllFunc func(contextMoqParam context.Context) ([]internal.Repo, error)
-
-	// calls tracks calls to the methods.
-	calls struct {
-		// FetchAll holds details about calls to the FetchAll method.
-		FetchAll []struct {
-			// ContextMoqParam is the contextMoqParam argument value.
-			ContextMoqParam context.Context
-		}
-	}
-	lockFetchAll sync.RWMutex
-}
-
-// FetchAll calls FetchAllFunc.
-func (mock *RemoteFetcherMock) FetchAll(contextMoqParam context.Context) ([]internal.Repo, error) {
-	if mock.FetchAllFunc == nil {
-		panic("RemoteFetcherMock.FetchAllFunc: method is nil but RemoteFetcher.FetchAll was just called")
-	}
-	callInfo := struct {
-		ContextMoqParam context.Context
-	}{
-		ContextMoqParam: contextMoqParam,
-	}
-	mock.lockFetchAll.Lock()
-	mock.calls.FetchAll = append(mock.calls.FetchAll, callInfo)
-	mock.lockFetchAll.Unlock()
-	return mock.FetchAllFunc(contextMoqParam)
-}
-
-// FetchAllCalls gets all the calls that were made to FetchAll.
-// Check the length with:
-//
-//	len(mockedRemoteFetcher.FetchAllCalls())
-func (mock *RemoteFetcherMock) FetchAllCalls() []struct {
-	ContextMoqParam context.Context
-} {
-	var calls []struct {
-		ContextMoqParam context.Context
-	}
-	mock.lockFetchAll.RLock()
-	calls = mock.calls.FetchAll
-	mock.lockFetchAll.RUnlock()
-	return calls
-}
-
 // Ensure, that PickerMock does implement internal.Picker.
 // If this is not the case, regenerate this file with moq.
 var _ internal.Picker = &PickerMock{}
@@ -85,7 +19,7 @@ var _ internal.Picker = &PickerMock{}
 //
 //		// make and configure a mocked internal.Picker
 //		mockedPicker := &PickerMock{
-//			PickFunc: func(s string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+//			PickFunc: func(s string, candidates []internal.Candidate) (int, bool, error) {
 //				panic("mock out the Pick method")
 //			},
 //		}
@@ -96,7 +30,7 @@ var _ internal.Picker = &PickerMock{}
 //	}
 type PickerMock struct {
 	// PickFunc mocks the Pick method.
-	PickFunc func(s string, candidates []internal.Candidate) (internal.Candidate, bool, error)
+	PickFunc func(s string, candidates []internal.Candidate) (int, bool, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -112,7 +46,7 @@ type PickerMock struct {
 }
 
 // Pick calls PickFunc.
-func (mock *PickerMock) Pick(s string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+func (mock *PickerMock) Pick(s string, candidates []internal.Candidate) (int, bool, error) {
 	if mock.PickFunc == nil {
 		panic("PickerMock.PickFunc: method is nil but Picker.Pick was just called")
 	}
@@ -331,84 +265,6 @@ func (mock *ClonerMock) CloneCalls() []struct {
 	return calls
 }
 
-// Ensure, that RunnerMock does implement internal.Runner.
-// If this is not the case, regenerate this file with moq.
-var _ internal.Runner = &RunnerMock{}
-
-// RunnerMock is a mock implementation of internal.Runner.
-//
-//	func TestSomethingThatUsesRunner(t *testing.T) {
-//
-//		// make and configure a mocked internal.Runner
-//		mockedRunner := &RunnerMock{
-//			RunFunc: func(ctx context.Context, name string, args ...string) ([]byte, error) {
-//				panic("mock out the Run method")
-//			},
-//		}
-//
-//		// use mockedRunner in code that requires internal.Runner
-//		// and then make assertions.
-//
-//	}
-type RunnerMock struct {
-	// RunFunc mocks the Run method.
-	RunFunc func(ctx context.Context, name string, args ...string) ([]byte, error)
-
-	// calls tracks calls to the methods.
-	calls struct {
-		// Run holds details about calls to the Run method.
-		Run []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Name is the name argument value.
-			Name string
-			// Args is the args argument value.
-			Args []string
-		}
-	}
-	lockRun sync.RWMutex
-}
-
-// Run calls RunFunc.
-func (mock *RunnerMock) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	if mock.RunFunc == nil {
-		panic("RunnerMock.RunFunc: method is nil but Runner.Run was just called")
-	}
-	callInfo := struct {
-		Ctx  context.Context
-		Name string
-		Args []string
-	}{
-		Ctx:  ctx,
-		Name: name,
-		Args: args,
-	}
-	mock.lockRun.Lock()
-	mock.calls.Run = append(mock.calls.Run, callInfo)
-	mock.lockRun.Unlock()
-	return mock.RunFunc(ctx, name, args...)
-}
-
-// RunCalls gets all the calls that were made to Run.
-// Check the length with:
-//
-//	len(mockedRunner.RunCalls())
-func (mock *RunnerMock) RunCalls() []struct {
-	Ctx  context.Context
-	Name string
-	Args []string
-} {
-	var calls []struct {
-		Ctx  context.Context
-		Name string
-		Args []string
-	}
-	mock.lockRun.RLock()
-	calls = mock.calls.Run
-	mock.lockRun.RUnlock()
-	return calls
-}
-
 // Ensure, that SourceMock does implement internal.Source.
 // If this is not the case, regenerate this file with moq.
 var _ internal.Source = &SourceMock{}
@@ -422,6 +278,9 @@ var _ internal.Source = &SourceMock{}
 //			LoadFunc: func(query string) ([]internal.Candidate, error) {
 //				panic("mock out the Load method")
 //			},
+//			ResolveFunc: func(candidate internal.Candidate) (string, error) {
+//				panic("mock out the Resolve method")
+//			},
 //		}
 //
 //		// use mockedSource in code that requires internal.Source
@@ -432,6 +291,9 @@ type SourceMock struct {
 	// LoadFunc mocks the Load method.
 	LoadFunc func(query string) ([]internal.Candidate, error)
 
+	// ResolveFunc mocks the Resolve method.
+	ResolveFunc func(candidate internal.Candidate) (string, error)
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// Load holds details about calls to the Load method.
@@ -439,8 +301,14 @@ type SourceMock struct {
 			// Query is the query argument value.
 			Query string
 		}
+		// Resolve holds details about calls to the Resolve method.
+		Resolve []struct {
+			// Candidate is the candidate argument value.
+			Candidate internal.Candidate
+		}
 	}
-	lockLoad sync.RWMutex
+	lockLoad    sync.RWMutex
+	lockResolve sync.RWMutex
 }
 
 // Load calls LoadFunc.
@@ -472,6 +340,38 @@ func (mock *SourceMock) LoadCalls() []struct {
 	mock.lockLoad.RLock()
 	calls = mock.calls.Load
 	mock.lockLoad.RUnlock()
+	return calls
+}
+
+// Resolve calls ResolveFunc.
+func (mock *SourceMock) Resolve(candidate internal.Candidate) (string, error) {
+	if mock.ResolveFunc == nil {
+		panic("SourceMock.ResolveFunc: method is nil but Source.Resolve was just called")
+	}
+	callInfo := struct {
+		Candidate internal.Candidate
+	}{
+		Candidate: candidate,
+	}
+	mock.lockResolve.Lock()
+	mock.calls.Resolve = append(mock.calls.Resolve, callInfo)
+	mock.lockResolve.Unlock()
+	return mock.ResolveFunc(candidate)
+}
+
+// ResolveCalls gets all the calls that were made to Resolve.
+// Check the length with:
+//
+//	len(mockedSource.ResolveCalls())
+func (mock *SourceMock) ResolveCalls() []struct {
+	Candidate internal.Candidate
+} {
+	var calls []struct {
+		Candidate internal.Candidate
+	}
+	mock.lockResolve.RLock()
+	calls = mock.calls.Resolve
+	mock.lockResolve.RUnlock()
 	return calls
 }
 
@@ -663,71 +563,5 @@ func (mock *PrunableMock) PruneCalls() []struct {
 	mock.lockPrune.RLock()
 	calls = mock.calls.Prune
 	mock.lockPrune.RUnlock()
-	return calls
-}
-
-// Ensure, that LocalCleanerMock does implement internal.LocalCleaner.
-// If this is not the case, regenerate this file with moq.
-var _ internal.LocalCleaner = &LocalCleanerMock{}
-
-// LocalCleanerMock is a mock implementation of internal.LocalCleaner.
-//
-//	func TestSomethingThatUsesLocalCleaner(t *testing.T) {
-//
-//		// make and configure a mocked internal.LocalCleaner
-//		mockedLocalCleaner := &LocalCleanerMock{
-//			RemoveFunc: func(s string) error {
-//				panic("mock out the Remove method")
-//			},
-//		}
-//
-//		// use mockedLocalCleaner in code that requires internal.LocalCleaner
-//		// and then make assertions.
-//
-//	}
-type LocalCleanerMock struct {
-	// RemoveFunc mocks the Remove method.
-	RemoveFunc func(s string) error
-
-	// calls tracks calls to the methods.
-	calls struct {
-		// Remove holds details about calls to the Remove method.
-		Remove []struct {
-			// S is the s argument value.
-			S string
-		}
-	}
-	lockRemove sync.RWMutex
-}
-
-// Remove calls RemoveFunc.
-func (mock *LocalCleanerMock) Remove(s string) error {
-	if mock.RemoveFunc == nil {
-		panic("LocalCleanerMock.RemoveFunc: method is nil but LocalCleaner.Remove was just called")
-	}
-	callInfo := struct {
-		S string
-	}{
-		S: s,
-	}
-	mock.lockRemove.Lock()
-	mock.calls.Remove = append(mock.calls.Remove, callInfo)
-	mock.lockRemove.Unlock()
-	return mock.RemoveFunc(s)
-}
-
-// RemoveCalls gets all the calls that were made to Remove.
-// Check the length with:
-//
-//	len(mockedLocalCleaner.RemoveCalls())
-func (mock *LocalCleanerMock) RemoveCalls() []struct {
-	S string
-} {
-	var calls []struct {
-		S string
-	}
-	mock.lockRemove.RLock()
-	calls = mock.calls.Remove
-	mock.lockRemove.RUnlock()
 	return calls
 }

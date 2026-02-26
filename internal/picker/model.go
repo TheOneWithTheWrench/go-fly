@@ -3,6 +3,7 @@ package picker
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -23,30 +24,30 @@ const (
 
 const helpLine = "enter select • esc cancel • ↑↓/ctrl+n/ctrl+p navigate"
 
-type item struct {
-	index int
-	value string
-}
-
 type Model struct {
 	config        Config
 	input         textinput.Model
-	items         []item
-	filtered      []item
+	items         []sorters.Item
+	filtered      []sorters.Item
 	cursor        int
 	offset        int
 	width         int
 	height        int
-	selected      string
+	selected      sorters.Item
 	selectedIndex int
 	ok            bool
 	layout        layout.Strategy
 }
 
-func newModelWithConfig(items []string, config Config, input textinput.Model) Model {
-	baseItems := make([]item, len(items))
+func newModelWithConfig(items []Item, config Config, input textinput.Model) Model {
+	baseItems := make([]sorters.Item, len(items))
 	for i, value := range items {
-		baseItems[i] = item{index: i, value: value}
+		baseItems[i] = sorters.Item{
+			Index:   i,
+			Value:   value.Value,
+			Signals: maps.Clone(value.Signals),
+			Meta:    maps.Clone(value.Meta),
+		}
 	}
 	if config.Matcher == nil {
 		config.Matcher = orderedchars.New()
@@ -82,8 +83,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.filtered) == 0 {
 				return m, nil
 			}
-			m.selected = m.filtered[m.cursor].value
-			m.selectedIndex = m.filtered[m.cursor].index
+			m.selected = m.filtered[m.cursor]
+			m.selectedIndex = m.selected.Index
 			m.ok = true
 			return m, tea.Quit
 		}
@@ -174,13 +175,29 @@ func (m *Model) RenderList(reverse bool) []string {
 }
 
 func (m Model) Result() Result {
-	return Result{Index: m.selectedIndex, Value: m.selected, OK: m.ok}
+	if !m.ok {
+		return Result{OK: false}
+	}
+
+	selected := Item{
+		Index:   m.selected.Index,
+		Value:   m.selected.Value,
+		Signals: maps.Clone(m.selected.Signals),
+		Meta:    maps.Clone(m.selected.Meta),
+	}
+
+	return Result{
+		Index: m.selectedIndex,
+		Value: m.selected.Value,
+		Item:  selected,
+		OK:    true,
+	}
 }
 
 func (m Model) FilteredItems() []string {
 	items := make([]string, len(m.filtered))
 	for i, entry := range m.filtered {
-		items[i] = entry.value
+		items[i] = entry.Value
 	}
 	return items
 }
@@ -264,14 +281,14 @@ func (m Model) visibleCount() int {
 	return visible
 }
 
-func filterItems(query string, items []item, matcher matchers.Matcher) []item {
+func filterItems(query string, items []sorters.Item, matcher matchers.Matcher) []sorters.Item {
 	if strings.TrimSpace(query) == "" {
 		return items
 	}
 
-	filtered := make([]item, 0, len(items))
+	filtered := make([]sorters.Item, 0, len(items))
 	for _, entry := range items {
-		if matcher.Match(query, entry.value).Matched {
+		if matcher.Match(query, entry).Matched {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -279,10 +296,15 @@ func filterItems(query string, items []item, matcher matchers.Matcher) []item {
 	return filtered
 }
 
-func sortItems(query string, items []item, matcher matchers.Matcher, sorter sorters.Sorter) []item {
+func sortItems(query string, items []sorters.Item, matcher matchers.Matcher, sorter sorters.Sorter) []sorters.Item {
 	entries := make([]sorters.Item, len(items))
 	for i, entry := range items {
-		entries[i] = sorters.Item{Index: entry.index, Value: entry.value}
+		entries[i] = sorters.Item{
+			Index:   entry.Index,
+			Value:   entry.Value,
+			Signals: maps.Clone(entry.Signals),
+			Meta:    maps.Clone(entry.Meta),
+		}
 	}
 
 	sorted := sorter.Sort(query, entries, matcher)
@@ -290,9 +312,14 @@ func sortItems(query string, items []item, matcher matchers.Matcher, sorter sort
 		return nil
 	}
 
-	result := make([]item, len(sorted))
+	result := make([]sorters.Item, len(sorted))
 	for i, entry := range sorted {
-		result[i] = item{index: entry.Index, value: entry.Value}
+		result[i] = sorters.Item{
+			Index:   entry.Index,
+			Value:   entry.Value,
+			Signals: maps.Clone(entry.Signals),
+			Meta:    maps.Clone(entry.Meta),
+		}
 	}
 
 	return result
@@ -355,8 +382,9 @@ func renderListLine(m *Model, index int) string {
 	if index == m.cursor {
 		prefix = cursorStyle.Render(">")
 	}
-	value := m.filtered[index].value
-	match := m.config.Matcher.Match(m.input.Value(), value)
+	entry := m.filtered[index]
+	value := entry.Value
+	match := m.config.Matcher.Match(m.input.Value(), entry)
 	line := renderValue(value, index == m.cursor, match)
 	return fmt.Sprintf("%s %s", prefix, line)
 }

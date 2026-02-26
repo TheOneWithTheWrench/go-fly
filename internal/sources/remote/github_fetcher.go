@@ -1,4 +1,4 @@
-package internal
+package remote
 
 import (
 	"context"
@@ -6,39 +6,37 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/TheOneWithTheWrench/go-fly/internal"
 )
 
-var ErrForbidden = errors.New("forbidden")
+var errForbidden = errors.New("forbidden")
 
-type Client struct {
-	runner Runner
+type GitHubFetcher struct {
+	runner internal.Runner
 }
 
-type Runner interface {
-	Run(ctx context.Context, name string, args ...string) ([]byte, error)
+func NewGitHubFetcher(runner internal.Runner) *GitHubFetcher {
+	return &GitHubFetcher{runner: runner}
 }
 
-func NewClient(runner Runner) *Client {
-	return &Client{runner: runner}
-}
-
-func (c *Client) FetchAll(ctx context.Context) ([]Repo, error) {
-	if c.runner == nil {
+func (f *GitHubFetcher) FetchAll(ctx context.Context) ([]internal.Repo, error) {
+	if f.runner == nil {
 		return nil, fmt.Errorf("runner required")
 	}
 
-	orgs, err := c.listOrgs(ctx)
+	orgs, err := f.listOrgs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	userRepos, err := c.listRepos(ctx, "user/repos")
+	userRepos, err := f.listRepos(ctx, "user/repos")
 	if err != nil {
 		return nil, err
 	}
 
 	seen := make(map[string]struct{}, len(userRepos))
-	repos := make([]Repo, 0, len(userRepos))
+	repos := make([]internal.Repo, 0, len(userRepos))
 
 	for _, repo := range userRepos {
 		if repo.FullName == "" {
@@ -52,7 +50,7 @@ func (c *Client) FetchAll(ctx context.Context) ([]Repo, error) {
 	}
 
 	for _, org := range orgs {
-		orgRepos, err := c.listRepos(ctx, fmt.Sprintf("orgs/%s/repos", org))
+		orgRepos, err := f.listRepos(ctx, fmt.Sprintf("orgs/%s/repos", org))
 		if err != nil {
 			return nil, err
 		}
@@ -71,8 +69,8 @@ func (c *Client) FetchAll(ctx context.Context) ([]Repo, error) {
 	return repos, nil
 }
 
-func (c *Client) listOrgs(ctx context.Context) ([]string, error) {
-	data, err := c.run(ctx, "api", "user/orgs", "--method", "GET", "--paginate", "-F", "per_page=100")
+func (f *GitHubFetcher) listOrgs(ctx context.Context) ([]string, error) {
+	data, err := f.run(ctx, "api", "user/orgs", "--method", "GET", "--paginate", "-F", "per_page=100")
 	if err != nil {
 		return nil, fmt.Errorf("list orgs: %w", err)
 	}
@@ -94,18 +92,16 @@ func (c *Client) listOrgs(ctx context.Context) ([]string, error) {
 	return result, nil
 }
 
-func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error) {
-	data, err := c.run(ctx, "api", endpoint, "--method", "GET", "--paginate", "-F", "per_page=100")
+func (f *GitHubFetcher) listRepos(ctx context.Context, endpoint string) ([]internal.Repo, error) {
+	data, err := f.run(ctx, "api", endpoint, "--method", "GET", "--paginate", "-F", "per_page=100")
 	if err != nil {
-		if isOrgEndpoint(endpoint) {
-			if errors.Is(err, ErrForbidden) {
-				return nil, nil
-			}
+		if isOrgEndpoint(endpoint) && errors.Is(err, errForbidden) {
+			return nil, nil
 		}
 		return nil, fmt.Errorf("list repos: %w", err)
 	}
 
-	var repos []Repo
+	var repos []internal.Repo
 	if err := json.Unmarshal(data, &repos); err != nil {
 		return nil, fmt.Errorf("parse repos: %w", err)
 	}
@@ -113,11 +109,11 @@ func (c *Client) listRepos(ctx context.Context, endpoint string) ([]Repo, error)
 	return repos, nil
 }
 
-func (c *Client) run(ctx context.Context, args ...string) ([]byte, error) {
-	data, err := c.runner.Run(ctx, "gh", args...)
+func (f *GitHubFetcher) run(ctx context.Context, args ...string) ([]byte, error) {
+	data, err := f.runner.Run(ctx, "gh", args...)
 	if err != nil {
 		if isForbidden(data, err) {
-			return nil, fmt.Errorf("%w: %s", ErrForbidden, err)
+			return nil, fmt.Errorf("%w: %s", errForbidden, err)
 		}
 		return nil, err
 	}

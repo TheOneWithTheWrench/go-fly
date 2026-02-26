@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 
 	fly "github.com/TheOneWithTheWrench/go-fly/internal"
-	"github.com/TheOneWithTheWrench/go-fly/internal/sources/local"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/zoxide"
 )
 
 func main() {
@@ -65,20 +65,29 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func newApp() (*fly.App, error) {
-	client := fly.NewClient(newRunnerFunc())
-	localSource, err := local.New(newPrunerFunc())
+	var (
+		runner  = newRunnerFunc()
+		fetcher = remote.NewGitHubFetcher(runner)
+	)
+
+	remoteSource, err := remote.New(fetcher, newRefresherFunc(), newClonerFunc())
 	if err != nil {
 		return nil, err
 	}
-	remoteSource, err := remote.New(client, newRefresherFunc())
+
+	lister, err := zoxide.NewCommandLister(runner)
+	if err != nil {
+		return nil, err
+	}
+
+	zoxideSource, err := zoxide.New(lister)
 	if err != nil {
 		return nil, err
 	}
 
 	appInstance, err := fly.NewApp(
-		[]fly.Source{localSource, remoteSource},
+		[]fly.Source{zoxideSource, remoteSource},
 		newPickerFunc(),
-		newClonerFunc(),
 	)
 	if err != nil {
 		return nil, err
@@ -120,7 +129,7 @@ func newClonerFunc() fly.ClonerFunc {
 			return "", fmt.Errorf("get working dir: %w", err)
 		}
 
-		dest, err := fly.Destination(repo, cwd)
+		dest, err := remote.Destination(repo, cwd)
 		if err != nil {
 			return "", err
 		}

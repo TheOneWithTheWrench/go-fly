@@ -41,7 +41,7 @@ func (s Sorter) Sort(query string, items []sorters.Item, matcher matchers.Matche
 
 	scores := make([]score, len(items))
 	for i, item := range items {
-		match := matcher.Match(query, item.Value)
+		match := matcher.Match(query, item)
 		scores[i] = scoreFor(item, match)
 	}
 

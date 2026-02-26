@@ -1,7 +1,9 @@
 package matchers
 
+import "github.com/TheOneWithTheWrench/go-fly/internal/picker/item"
+
 type Matcher interface {
-	Match(query, candidate string) Match
+	Match(query string, item item.Item) Match
 }
 
 type Match struct {

@@ -3,6 +3,7 @@ package substring_test
 import (
 	"testing"
 
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/item"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/substring"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ func TestSubstringMatcher(t *testing.T) {
 	t.Run("match empty query", func(t *testing.T) {
 		var (
 			sut   = newSut()
-			match = sut.Match("", "alpha")
+			match = sut.Match("", item.Item{Value: "alpha"})
 		)
 
 		assert.True(t, match.Matched)
@@ -28,7 +29,7 @@ func TestSubstringMatcher(t *testing.T) {
 	t.Run("match substring", func(t *testing.T) {
 		var (
 			sut   = newSut()
-			match = sut.Match("alp", "alpha")
+			match = sut.Match("alp", item.Item{Value: "alpha"})
 		)
 
 		assert.True(t, match.Matched)
@@ -38,7 +39,7 @@ func TestSubstringMatcher(t *testing.T) {
 	t.Run("match case insensitive", func(t *testing.T) {
 		var (
 			sut   = newSut()
-			match = sut.Match("ALP", "alpha")
+			match = sut.Match("ALP", item.Item{Value: "alpha"})
 		)
 
 		assert.True(t, match.Matched)
@@ -48,7 +49,7 @@ func TestSubstringMatcher(t *testing.T) {
 	t.Run("no match", func(t *testing.T) {
 		var (
 			sut   = newSut()
-			match = sut.Match("zz", "alpha")
+			match = sut.Match("zz", item.Item{Value: "alpha"})
 		)
 
 		assert.False(t, match.Matched)

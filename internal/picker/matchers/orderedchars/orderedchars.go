@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/TheOneWithTheWrench/go-fly/internal/picker/item"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers"
 )
 
@@ -24,14 +25,14 @@ func New() matchers.Matcher {
 	return Matcher{}
 }
 
-func (Matcher) Match(query, candidate string) matchers.Match {
+func (Matcher) Match(query string, entry item.Item) matchers.Match {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return matchers.Match{Matched: true}
 	}
 
 	needle := strings.ToLower(query)
-	haystack := strings.ToLower(candidate)
+	haystack := strings.ToLower(entry.Value)
 	if len(needle) == 0 {
 		return matchers.Match{Matched: true}
 	}

@@ -1,40 +1,23 @@
 package internal
 
-import "fmt"
-
-type Kind string
+type Candidate struct {
+	Signals  map[string]float64
+	Meta     map[string]string
+	resolver Source
+}
 
 const (
-	KindLocal  Kind = "local"
-	KindRemote Kind = "remote"
+	CandidateMetaLabel    = "label"
+	CandidateMetaKind     = "kind"
+	CandidateMetaPath     = "path"
+	CandidateMetaName     = "name"
+	CandidateMetaFullName = "full_name"
+	CandidateMetaSSHURL   = "ssh_url"
+	CandidateMetaSource   = "source"
+
+	CandidateSourceLocal  = "local"
+	CandidateSourceRemote = "remote"
+	CandidateSourceZoxide = "zoxide"
+
+	CandidateSignalZoxideScore = "source.zoxide.score"
 )
-
-type Candidate struct {
-	Kind   Kind
-	Local  Entry
-	Remote Repo
-}
-
-func CandidateLabel(selected Candidate) string {
-	if selected.Kind == KindRemote {
-		return remoteLabel(selected.Remote)
-	}
-
-	return entryLabel(selected.Local)
-}
-
-func entryLabel(entry Entry) string {
-	if entry.Name == "" {
-		return entry.Path
-	}
-
-	return fmt.Sprintf("%s (%s)", entry.Name, entry.Path)
-}
-
-func remoteLabel(repo Repo) string {
-	label := repo.FullName
-	if label == "" {
-		label = repo.Name
-	}
-	return fmt.Sprintf("%s (remote)", label)
-}

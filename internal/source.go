@@ -7,6 +7,7 @@ import (
 
 type Source interface {
 	Load(query string) ([]Candidate, error)
+	Resolve(Candidate) (string, error)
 }
 
 type Refreshable interface {
@@ -21,8 +22,6 @@ type Prunable interface {
 	Prune() error
 }
 
-type LocalCleaner interface {
-	Remove(string) error
-}
-
 var ErrNoReposTracked = errors.New("no repos tracked yet")
+
+var ErrUnsupportedCandidate = errors.New("unsupported candidate")

@@ -25,6 +25,10 @@ func (s refreshableSource) Load(query string) ([]internal.Candidate, error) {
 	return s.source.Load(query)
 }
 
+func (s refreshableSource) Resolve(candidate internal.Candidate) (string, error) {
+	return "", internal.ErrUnsupportedCandidate
+}
+
 func (s refreshableSource) Refresh(ctx context.Context) error {
 	return s.refreshable.Refresh(ctx)
 }
@@ -36,6 +40,10 @@ type prunableSource struct {
 
 func (s prunableSource) Load(query string) ([]internal.Candidate, error) {
 	return s.source.Load(query)
+}
+
+func (s prunableSource) Resolve(candidate internal.Candidate) (string, error) {
+	return "", internal.ErrUnsupportedCandidate
 }
 
 func (s prunableSource) Prune() error {
@@ -51,37 +59,58 @@ func (s trackableSource) Load(query string) ([]internal.Candidate, error) {
 	return s.source.Load(query)
 }
 
+func (s trackableSource) Resolve(candidate internal.Candidate) (string, error) {
+	return "", internal.ErrUnsupportedCandidate
+}
+
 func (s trackableSource) Track(path string) error {
 	return s.trackable.Track(path)
 }
 
-type localCleanSource struct {
-	source  *SourceMock
-	cleaner *LocalCleanerMock
+type resolverSource struct {
+	source      *SourceMock
+	resolveFunc func(internal.Candidate) (string, error)
 }
 
-func (s localCleanSource) Load(query string) ([]internal.Candidate, error) {
+func (s resolverSource) Load(query string) ([]internal.Candidate, error) {
 	return s.source.Load(query)
 }
 
-func (s localCleanSource) Remove(path string) error {
-	return s.cleaner.Remove(path)
+func (s resolverSource) Resolve(candidate internal.Candidate) (string, error) {
+	if s.resolveFunc == nil {
+		return "", internal.ErrUnsupportedCandidate
+	}
+
+	return s.resolveFunc(candidate)
 }
 
 var (
-	newSut = func(t *testing.T, sources []internal.Source, picker internal.Picker, cloner internal.Cloner) *internal.App {
-		app, err := internal.NewApp(sources, picker, cloner)
+	newSut = func(t *testing.T, sources []internal.Source, picker internal.Picker) *internal.App {
+		app, err := internal.NewApp(sources, picker)
 		require.NoError(t, err)
 		return app
 	}
 )
 
 func localCandidate(entry internal.Entry) internal.Candidate {
-	return internal.Candidate{Kind: internal.KindLocal, Local: entry}
+	return internal.Candidate{
+		Meta: map[string]string{
+			internal.CandidateMetaSource: internal.CandidateSourceLocal,
+			internal.CandidateMetaName:   entry.Name,
+			internal.CandidateMetaPath:   entry.Path,
+		},
+	}
 }
 
 func remoteCandidate(repo internal.Repo) internal.Candidate {
-	return internal.Candidate{Kind: internal.KindRemote, Remote: repo}
+	return internal.Candidate{
+		Meta: map[string]string{
+			internal.CandidateMetaSource:   internal.CandidateSourceRemote,
+			internal.CandidateMetaName:     repo.Name,
+			internal.CandidateMetaFullName: repo.FullName,
+			internal.CandidateMetaSSHURL:   repo.SSHURL,
+		},
+	}
 }
 
 func TestShouldRefresh(t *testing.T) {
@@ -140,14 +169,13 @@ func TestRefresh(t *testing.T) {
 	t.Run("call refreshable sources", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			source = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}
 			refresh = &RefreshableMock{RefreshFunc: func(ctx context.Context) error { return nil }}
 		)
 
-		sut := newSut(t, []internal.Source{refreshableSource{source: source, refreshable: refresh}}, picker, cloner)
+		sut := newSut(t, []internal.Source{refreshableSource{source: source, refreshable: refresh}}, picker)
 
 		err := sut.Refresh(context.Background())
 
@@ -160,34 +188,33 @@ func TestQuery(t *testing.T) {
 	t.Run("remove missing local selection", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return []internal.Candidate{localCandidate(internal.Entry{Name: "alpha", Path: "/work/alpha"})}, nil
 			}}
 			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}
-			cleaner = &LocalCleanerMock{RemoveFunc: func(path string) error { return nil }}
+			resolverCalled bool
 		)
 
 		app, err := internal.NewApp([]internal.Source{
-			localCleanSource{source: local, cleaner: cleaner},
+			resolverSource{source: local, resolveFunc: func(candidate internal.Candidate) (string, error) {
+				resolverCalled = true
+				return "", errors.New("repo no longer exists: /work/alpha")
+			}},
 			remote,
-		}, picker, cloner)
+		}, picker)
 		require.NoError(t, err)
 
 		err = app.Query("alpha", &bytes.Buffer{})
 
 		assert.Error(t, err)
-		removeCalls := cleaner.RemoveCalls()
-		require.Len(t, removeCalls, 1)
-		assert.Equal(t, "/work/alpha", removeCalls[0].S)
+		assert.True(t, resolverCalled)
 	})
 
 	t.Run("return error when no repos", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}
@@ -196,7 +223,7 @@ func TestQuery(t *testing.T) {
 			}}
 		)
 
-		sut := newSut(t, []internal.Source{local, remote}, picker, cloner)
+		sut := newSut(t, []internal.Source{local, remote}, picker)
 
 		err := sut.Query("", &bytes.Buffer{})
 
@@ -206,7 +233,6 @@ func TestQuery(t *testing.T) {
 	t.Run("return error when no matches", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, nil
 			}}
@@ -215,33 +241,35 @@ func TestQuery(t *testing.T) {
 			}}
 		)
 
-		sut := newSut(t, []internal.Source{local, remote}, picker, cloner)
+		sut := newSut(t, []internal.Source{local, remote}, picker)
 
 		err := sut.Query("zzz", &bytes.Buffer{})
 
 		assert.Error(t, err)
 	})
 
-	t.Run("return error when clone fails", func(t *testing.T) {
+	t.Run("return error when resolve fails", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, nil
 			}}
 			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
 			}}
+			remoteResolver = resolverSource{source: remote, resolveFunc: func(candidate internal.Candidate) (string, error) {
+				if candidate.Meta[internal.CandidateMetaSource] != internal.CandidateSourceRemote {
+					return "", internal.ErrUnsupportedCandidate
+				}
+
+				return "", errors.New("boom")
+			}}
 		)
 
-		picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
-			return candidates[0], true, nil
+		picker.PickFunc = func(query string, candidates []internal.Candidate) (int, bool, error) {
+			return 0, true, nil
 		}
-		cloner.CloneFunc = func(repo internal.Repo) (string, error) {
-			return "", errors.New("boom")
-		}
-
-		sut := newSut(t, []internal.Source{local, remote}, picker, cloner)
+		sut := newSut(t, []internal.Source{local, remoteResolver}, picker)
 
 		err := sut.Query("beta", &bytes.Buffer{})
 
@@ -255,20 +283,22 @@ func TestQuery(t *testing.T) {
 		)
 		require.NoError(t, os.MkdirAll(filepath.Join(valid, ".git"), 0o755))
 
-		local := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+		local := resolverSource{source: &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 			return []internal.Candidate{localCandidate(internal.Entry{Name: "alpha", Path: valid})}, nil
+		}}, resolveFunc: func(candidate internal.Candidate) (string, error) {
+			return candidate.Meta[internal.CandidateMetaPath], nil
 		}}
 		remote := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 			return nil, internal.ErrNoReposTracked
 		}}
 
-		picker := &PickerMock{PickFunc: func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
+		picker := &PickerMock{PickFunc: func(query string, candidates []internal.Candidate) (int, bool, error) {
 			t.Fatalf("picker should not be called")
-			return internal.Candidate{}, false, nil
+			return -1, false, nil
 		}}
 
 		out := &bytes.Buffer{}
-		sut := newSut(t, []internal.Source{local, remote}, picker, &ClonerMock{})
+		sut := newSut(t, []internal.Source{local, remote}, picker)
 
 		err := sut.Query("alpha", out)
 
@@ -283,19 +313,21 @@ func TestQuery(t *testing.T) {
 		)
 		require.NoError(t, os.MkdirAll(filepath.Join(valid, ".git"), 0o755))
 
-		local := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
+		local := resolverSource{source: &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 			return []internal.Candidate{localCandidate(internal.Entry{Name: "alpha", Path: valid})}, nil
+		}}, resolveFunc: func(candidate internal.Candidate) (string, error) {
+			return candidate.Meta[internal.CandidateMetaPath], nil
 		}}
 		remote := &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 			return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
 		}}
 
-		picker := &PickerMock{PickFunc: func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
-			return candidates[0], true, nil
+		picker := &PickerMock{PickFunc: func(query string, candidates []internal.Candidate) (int, bool, error) {
+			return 0, true, nil
 		}}
 
 		out := &bytes.Buffer{}
-		sut := newSut(t, []internal.Source{local, remote}, picker, &ClonerMock{})
+		sut := newSut(t, []internal.Source{local, remote}, picker)
 
 		err := sut.Query("alpha", out)
 
@@ -303,34 +335,36 @@ func TestQuery(t *testing.T) {
 		assert.Contains(t, out.String(), valid)
 	})
 
-	t.Run("clone remote selection", func(t *testing.T) {
+	t.Run("resolve remote selection", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			local  = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}
 			remote = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
 			}}
+			remoteResolver = resolverSource{source: remote, resolveFunc: func(candidate internal.Candidate) (string, error) {
+				if candidate.Meta[internal.CandidateMetaSource] != internal.CandidateSourceRemote {
+					return "", internal.ErrUnsupportedCandidate
+				}
+
+				return "/work/beta", nil
+			}}
 			trackable = &TrackableMock{TrackFunc: func(path string) error { return nil }}
 		)
 
-		picker.PickFunc = func(query string, candidates []internal.Candidate) (internal.Candidate, bool, error) {
-			return candidates[0], true, nil
+		picker.PickFunc = func(query string, candidates []internal.Candidate) (int, bool, error) {
+			return 0, true, nil
 		}
-		cloner.CloneFunc = func(repo internal.Repo) (string, error) {
-			return "/work/beta", nil
-		}
-
 		out := &bytes.Buffer{}
 		sut := newSut(t, []internal.Source{
 			local,
-			remote,
+			remoteResolver,
 			trackableSource{source: &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}, trackable: trackable},
-		}, picker, cloner)
+		}, picker)
 
 		err := sut.Query("beta", out)
 
@@ -346,14 +380,13 @@ func TestPrune(t *testing.T) {
 	t.Run("call prunable sources", func(t *testing.T) {
 		var (
 			picker = &PickerMock{}
-			cloner = &ClonerMock{}
 			source = &SourceMock{LoadFunc: func(query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}
 			prunable = &PrunableMock{PruneFunc: func() error { return nil }}
 		)
 
-		sut := newSut(t, []internal.Source{prunableSource{source: source, prunable: prunable}}, picker, cloner)
+		sut := newSut(t, []internal.Source{prunableSource{source: source, prunable: prunable}}, picker)
 
 		err := sut.Prune()
 

@@ -53,7 +53,13 @@ func (s *Source) Load(query string) ([]internal.Candidate, error) {
 
 	candidates := make([]internal.Candidate, 0, len(filtered))
 	for _, entry := range filtered {
-		candidates = append(candidates, internal.Candidate{Kind: internal.KindLocal, Local: entry})
+		candidates = append(candidates, internal.Candidate{
+			Meta: map[string]string{
+				internal.CandidateMetaSource: internal.CandidateSourceLocal,
+				internal.CandidateMetaName:   entry.Name,
+				internal.CandidateMetaPath:   entry.Path,
+			},
+		})
 	}
 
 	return candidates, nil
@@ -70,6 +76,27 @@ func (s *Source) Track(repoPath string) error {
 	}
 
 	return s.store.Upsert(entry)
+}
+
+func (s *Source) Resolve(candidate internal.Candidate) (string, error) {
+	if candidate.Meta[internal.CandidateMetaSource] != internal.CandidateSourceLocal {
+		return "", internal.ErrUnsupportedCandidate
+	}
+
+	path := candidate.Meta[internal.CandidateMetaPath]
+	if path == "" {
+		return "", internal.ErrUnsupportedCandidate
+	}
+
+	valid, err := internal.CheckDestination(path)
+	if err != nil || !valid {
+		if removeErr := s.Remove(path); removeErr != nil {
+			return "", removeErr
+		}
+		return "", fmt.Errorf("repo no longer exists: %s", path)
+	}
+
+	return path, nil
 }
 
 func (s *Source) Prune() error {
