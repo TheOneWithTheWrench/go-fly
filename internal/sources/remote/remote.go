@@ -80,6 +80,22 @@ func WithRefreshLauncher(refreshLaunch internal.Refresher) Option {
 }
 
 func New(sourceOptions ...Option) (*Source, error) {
+	defaultOpts := options{
+		cloner:        NewGitHubCloner(os.Stdin, os.Stderr),
+		runner:        defaultRunner(),
+		refreshLaunch: newDetachedRefresher(),
+	}
+
+	for _, option := range sourceOptions {
+		if err := option(&defaultOpts); err != nil {
+			return nil, err
+		}
+	}
+
+	if defaultOpts.fetcher == nil {
+		defaultOpts.fetcher = NewGitHubFetcher(defaultOpts.runner)
+	}
+
 	store, err := NewRemoteStore()
 	if err != nil {
 		return nil, err
@@ -89,31 +105,12 @@ func New(sourceOptions ...Option) (*Source, error) {
 		return nil, err
 	}
 
-	opts := options{
-		cloner:        NewGitHubCloner(os.Stdin, os.Stderr),
-		runner:        defaultRunner(),
-		refreshLaunch: newDetachedRefresher(),
-	}
-	for _, option := range sourceOptions {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
-			return nil, err
-		}
-	}
-
-	if opts.fetcher == nil {
-		opts.fetcher = NewGitHubFetcher(opts.runner)
-	}
-
 	return &Source{
 		store:         store,
 		refreshState:  refreshState,
-		fetcher:       opts.fetcher,
-		refreshLaunch: opts.refreshLaunch,
-		cloner:        opts.cloner,
+		fetcher:       defaultOpts.fetcher,
+		refreshLaunch: defaultOpts.refreshLaunch,
+		cloner:        defaultOpts.cloner,
 		now:           time.Now,
 	}, nil
 }

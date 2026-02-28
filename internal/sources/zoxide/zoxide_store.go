@@ -45,23 +45,21 @@ func WithStorePath(path string) StoreOption {
 }
 
 func NewStore(options ...StoreOption) (*Store, error) {
+	defaultOpts := storeOptions{}
+
 	baseDir, err := internal.CacheDir(zoxideStoreAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
+	defaultOpts.path = filepath.Join(baseDir, zoxideStoreFileName)
 
-	opts := storeOptions{path: filepath.Join(baseDir, zoxideStoreFileName)}
 	for _, option := range options {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
+		if err := option(&defaultOpts); err != nil {
 			return nil, err
 		}
 	}
 
-	return &Store{path: opts.path}, nil
+	return &Store{path: defaultOpts.path}, nil
 }
 
 func (s *Store) Load() (Cache, bool, error) {

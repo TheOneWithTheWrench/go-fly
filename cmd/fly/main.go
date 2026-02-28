@@ -6,8 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	fly "github.com/TheOneWithTheWrench/go-fly/internal"
+	"github.com/TheOneWithTheWrench/go-fly/internal/config"
+	"github.com/TheOneWithTheWrench/go-fly/internal/sources/local"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/zoxide"
 )
@@ -64,22 +67,66 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func newApp() (*fly.App, error) {
-	remoteSource, err := remote.New()
+	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 
-	zoxideSource, err := zoxide.New()
+	sources, err := newSourcesFromCfg(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	picker, err := newPickerFromCfg(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	appInstance, err := fly.NewApp(
-		[]fly.Source{zoxideSource, remoteSource},
+		sources,
+		fly.WithPicker(picker),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return appInstance, nil
+}
+
+func newSourcesFromCfg(cfg config.Config) ([]fly.Source, error) {
+	sources := make([]fly.Source, 0, len(cfg.Sources.Enabled))
+	for _, sourceName := range cfg.Sources.Enabled {
+		source, err := newSource(sourceName)
+		if err != nil {
+			return nil, err
+		}
+
+		sources = append(sources, source)
+	}
+
+	return sources, nil
+}
+
+func newPickerFromCfg(cfg config.Config) (fly.Picker, error) {
+	pickerOptions, err := cfg.PickerOptions(os.Stderr)
+	if err != nil {
+		return nil, err
+	}
+
+	return fly.PickerFunc(func(query string, candidates []fly.Candidate) (int, bool, error) {
+		return fly.Pick(query, candidates, pickerOptions...)
+	}), nil
+}
+
+func newSource(sourceName string) (fly.Source, error) {
+	switch strings.ToLower(strings.TrimSpace(sourceName)) {
+	case config.SourceLocal:
+		return local.New()
+	case config.SourceRemote:
+		return remote.New()
+	case config.SourceZoxide:
+		return zoxide.New()
+	default:
+		return nil, fmt.Errorf("unsupported source %q", sourceName)
+	}
 }

@@ -28,14 +28,14 @@ type Cloner interface {
 	Clone(Repo) (string, error)
 }
 
-type AppOption func(*appOptions) error
+type Option func(*options) error
 
-type appOptions struct {
+type options struct {
 	picker Picker
 }
 
-func WithPicker(picker Picker) AppOption {
-	return func(opts *appOptions) error {
+func WithPicker(picker Picker) Option {
+	return func(opts *options) error {
 		if picker == nil {
 			return fmt.Errorf("picker required")
 		}
@@ -45,17 +45,13 @@ func WithPicker(picker Picker) AppOption {
 	}
 }
 
-func NewApp(sources []Source, options ...AppOption) (*App, error) {
-	if len(sources) == 0 {
-		return nil, fmt.Errorf("sources required")
+func NewApp(sources []Source, sourceOptions ...Option) (*App, error) {
+	opts := options{
+		picker: PickerFunc(func(query string, candidates []Candidate) (int, bool, error) {
+			return Pick(query, candidates)
+		}),
 	}
-
-	opts := appOptions{picker: PickerFunc(Pick)}
-	for _, option := range options {
-		if option == nil {
-			continue
-		}
-
+	for _, option := range sourceOptions {
 		if err := option(&opts); err != nil {
 			return nil, err
 		}

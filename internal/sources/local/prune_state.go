@@ -41,23 +41,21 @@ type PruneState struct {
 }
 
 func NewPruneStateStore(options ...PruneStateStoreOption) (*PruneStateStore, error) {
+	defaultOpts := pruneStateStoreOptions{}
+
 	baseDir, err := internal.CacheDir(pruneAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
+	defaultOpts.path = filepath.Join(baseDir, "prune.json")
 
-	opts := pruneStateStoreOptions{path: filepath.Join(baseDir, "prune.json")}
 	for _, option := range options {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
+		if err := option(&defaultOpts); err != nil {
 			return nil, err
 		}
 	}
 
-	return &PruneStateStore{path: opts.path}, nil
+	return &PruneStateStore{path: defaultOpts.path}, nil
 }
 
 func (s *PruneStateStore) Load() (PruneState, bool, error) {

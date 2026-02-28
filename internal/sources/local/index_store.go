@@ -38,23 +38,21 @@ func WithIndexStorePath(path string) IndexStoreOption {
 }
 
 func NewIndexStore(options ...IndexStoreOption) (*IndexStore, error) {
+	defaultOpts := indexStoreOptions{}
+
 	baseDir, err := internal.DataDir(indexAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve data dir: %w", err)
 	}
+	defaultOpts.path = filepath.Join(baseDir, indexFileName)
 
-	opts := indexStoreOptions{path: filepath.Join(baseDir, indexFileName)}
 	for _, option := range options {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
+		if err := option(&defaultOpts); err != nil {
 			return nil, err
 		}
 	}
 
-	return &IndexStore{path: opts.path}, nil
+	return &IndexStore{path: defaultOpts.path}, nil
 }
 
 func (s *IndexStore) Load() ([]internal.Entry, error) {

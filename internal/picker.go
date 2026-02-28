@@ -3,24 +3,17 @@ package internal
 import (
 	"fmt"
 	"maps"
-	"os"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker"
-	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters/by_signal"
-	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters/minipick"
 )
 
-func Pick(query string, candidates []Candidate) (int, bool, error) {
+func Pick(query string, candidates []Candidate, options ...picker.Option) (int, bool, error) {
 	items := make([]picker.Item, len(candidates))
 	for i := range candidates {
 		items[i] = pickerItem(candidates[i])
 	}
 
-	result, err := picker.Run(items, query,
-		picker.WithOutput(os.Stderr),
-		picker.WithSorter(by_signal.New(CandidateSignalZoxideScore, minipick.New())),
-		picker.WithWindowPosition(picker.WindowTop),
-	)
+	result, err := picker.Run(items, query, options...)
 	if err != nil {
 		return -1, false, err
 	}

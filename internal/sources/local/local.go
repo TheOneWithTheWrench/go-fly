@@ -37,6 +37,13 @@ func WithPruneLauncher(pruneLaunch internal.Pruner) Option {
 }
 
 func New(sourceOptions ...Option) (*Source, error) {
+	defaultOpts := options{pruneLaunch: newDetachedPruner()}
+	for _, option := range sourceOptions {
+		if err := option(&defaultOpts); err != nil {
+			return nil, err
+		}
+	}
+
 	store, err := NewIndexStore()
 	if err != nil {
 		return nil, err
@@ -46,21 +53,10 @@ func New(sourceOptions ...Option) (*Source, error) {
 		return nil, err
 	}
 
-	opts := options{pruneLaunch: newDetachedPruner()}
-	for _, option := range sourceOptions {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
-			return nil, err
-		}
-	}
-
 	return &Source{
 		store:       store,
 		pruneStore:  pruneStore,
-		pruneLaunch: opts.pruneLaunch,
+		pruneLaunch: defaultOpts.pruneLaunch,
 		now:         time.Now,
 	}, nil
 }

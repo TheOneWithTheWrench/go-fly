@@ -6,6 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.0.0
 	charm.land/bubbletea/v2 v2.0.0
 	charm.land/lipgloss/v2 v2.0.0
+	github.com/BurntSushi/toml v1.4.0
 	github.com/stretchr/testify v1.11.1
 )
 

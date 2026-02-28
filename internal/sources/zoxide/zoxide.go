@@ -48,29 +48,25 @@ func WithLister(lister Lister) SourceOption {
 	}
 }
 
-func New(options ...SourceOption) (*Source, error) {
-	opts := sourceOptions{}
+func New(optionFuncs ...SourceOption) (*Source, error) {
+	defaultOpts := sourceOptions{}
 
-	for _, option := range options {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
+	for _, option := range optionFuncs {
+		if err := option(&defaultOpts); err != nil {
 			return nil, err
 		}
 	}
 
-	if opts.lister == nil {
+	if defaultOpts.lister == nil {
 		lister, err := NewCommandLister(defaultRunner())
 		if err != nil {
 			return nil, err
 		}
 
-		opts.lister = lister
+		defaultOpts.lister = lister
 	}
 
-	return &Source{lister: opts.lister}, nil
+	return &Source{lister: defaultOpts.lister}, nil
 }
 
 func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, error) {

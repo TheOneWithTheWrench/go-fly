@@ -44,23 +44,21 @@ func WithStorePath(path string) StoreOption {
 }
 
 func NewRemoteStore(options ...StoreOption) (*RemoteStore, error) {
+	defaultOpts := storeOptions{}
+
 	baseDir, err := internal.CacheDir(remoteAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
+	defaultOpts.path = filepath.Join(baseDir, remoteFileName)
 
-	opts := storeOptions{path: filepath.Join(baseDir, remoteFileName)}
 	for _, option := range options {
-		if option == nil {
-			continue
-		}
-
-		if err := option(&opts); err != nil {
+		if err := option(&defaultOpts); err != nil {
 			return nil, err
 		}
 	}
 
-	return &RemoteStore{path: opts.path}, nil
+	return &RemoteStore{path: defaultOpts.path}, nil
 }
 
 func (s *RemoteStore) Load() (Cache, bool, error) {
