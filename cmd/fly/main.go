@@ -70,7 +70,7 @@ func newApp() (*fly.App, error) {
 		fetcher = remote.NewGitHubFetcher(runner)
 	)
 
-	remoteSource, err := remote.New(fetcher, newRefresherFunc(), newClonerFunc())
+	remoteSource, err := remote.New(fetcher, newRefresherFunc())
 	if err != nil {
 		return nil, err
 	}
@@ -115,42 +115,6 @@ func newRefresherFunc() fly.RefresherFunc {
 		}
 
 		_ = cmd.Process.Release()
-	})
-}
-
-func newClonerFunc() fly.ClonerFunc {
-	return fly.ClonerFunc(func(repo fly.Repo) (string, error) {
-		if repo.FullName == "" {
-			return "", fmt.Errorf("repo full name required")
-		}
-
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("get working dir: %w", err)
-		}
-
-		dest, err := remote.Destination(repo, cwd)
-		if err != nil {
-			return "", err
-		}
-
-		exists, err := fly.CheckDestination(dest)
-		if err != nil {
-			return "", err
-		}
-		if exists {
-			return dest, nil
-		}
-
-		cmd := exec.Command("gh", "repo", "clone", repo.FullName)
-		cmd.Stdout = os.Stderr
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
-			return "", fmt.Errorf("clone %s: %w", repo.FullName, err)
-		}
-
-		return dest, nil
 	})
 }
 

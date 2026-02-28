@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 )
@@ -14,22 +15,54 @@ type IndexStore struct {
 	path string
 }
 
+type IndexStoreOption interface {
+	apply(*indexStoreOptions) error
+}
+
+type indexStoreOptionFunc func(*indexStoreOptions) error
+
+func (f indexStoreOptionFunc) apply(opts *indexStoreOptions) error {
+	return f(opts)
+}
+
+type indexStoreOptions struct {
+	path string
+}
+
 const (
 	indexAppName  = "fly"
 	indexFileName = "index.json"
 )
 
-func NewIndexStore(path string) *IndexStore {
-	return &IndexStore{path: path}
+func WithIndexStorePath(path string) IndexStoreOption {
+	return indexStoreOptionFunc(func(opts *indexStoreOptions) error {
+		if strings.TrimSpace(path) == "" {
+			return fmt.Errorf("index path required")
+		}
+
+		opts.path = path
+		return nil
+	})
 }
 
-func DefaultIndexStore() (*IndexStore, error) {
+func NewIndexStore(options ...IndexStoreOption) (*IndexStore, error) {
 	baseDir, err := internal.DataDir(indexAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve data dir: %w", err)
 	}
 
-	return &IndexStore{path: filepath.Join(baseDir, indexFileName)}, nil
+	opts := indexStoreOptions{path: filepath.Join(baseDir, indexFileName)}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
+	}
+
+	return &IndexStore{path: opts.path}, nil
 }
 
 func (s *IndexStore) Load() ([]internal.Entry, error) {

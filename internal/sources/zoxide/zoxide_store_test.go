@@ -12,15 +12,20 @@ import (
 
 func TestStore(t *testing.T) {
 	var (
-		newStore = func(path string) *zoxide.Store {
-			return zoxide.NewStore(path)
+		newStore = func(t *testing.T, path string) *zoxide.Store {
+			t.Helper()
+
+			sut, err := zoxide.NewStore(zoxide.WithStorePath(path))
+			require.NoError(t, err)
+
+			return sut
 		}
 	)
 
 	t.Run("return empty when file missing", func(t *testing.T) {
 		var (
 			path = filepath.Join(t.TempDir(), "zoxide.json")
-			sut  = newStore(path)
+			sut  = newStore(t, path)
 		)
 
 		got, exists, err := sut.Load()
@@ -35,7 +40,7 @@ func TestStore(t *testing.T) {
 	t.Run("save and load cache", func(t *testing.T) {
 		var (
 			path  = filepath.Join(t.TempDir(), "zoxide.json")
-			sut   = newStore(path)
+			sut   = newStore(t, path)
 			when  = time.Date(2026, 2, 28, 10, 0, 0, 0, time.UTC)
 			cache = zoxide.Cache{
 				FetchedAt: when,

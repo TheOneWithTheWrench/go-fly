@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -21,8 +22,33 @@ type Fetcher interface {
 	FetchAll(context.Context) ([]internal.Repo, error)
 }
 
-func New(fetcher Fetcher, refreshLaunch internal.Refresher, cloner internal.Cloner) (*Source, error) {
-	store, err := DefaultRemoteStore()
+type Option interface {
+	apply(*options) error
+}
+
+type optionFunc func(*options) error
+
+func (f optionFunc) apply(opts *options) error {
+	return f(opts)
+}
+
+type options struct {
+	cloner internal.Cloner
+}
+
+func WithCloner(cloner internal.Cloner) Option {
+	return optionFunc(func(opts *options) error {
+		if cloner == nil {
+			return fmt.Errorf("cloner required")
+		}
+
+		opts.cloner = cloner
+		return nil
+	})
+}
+
+func New(fetcher Fetcher, refreshLaunch internal.Refresher, sourceOptions ...Option) (*Source, error) {
+	store, err := NewRemoteStore()
 	if err != nil {
 		return nil, err
 	}
@@ -32,15 +58,23 @@ func New(fetcher Fetcher, refreshLaunch internal.Refresher, cloner internal.Clon
 	if refreshLaunch == nil {
 		return nil, fmt.Errorf("refresh launcher required")
 	}
-	if cloner == nil {
-		return nil, fmt.Errorf("cloner required")
+
+	opts := options{cloner: NewGitHubCloner(os.Stdin, os.Stderr)}
+	for _, option := range sourceOptions {
+		if option == nil {
+			continue
+		}
+
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Source{
 		store:         store,
 		fetcher:       fetcher,
 		refreshLaunch: refreshLaunch,
-		cloner:        cloner,
+		cloner:        opts.cloner,
 		now:           time.Now,
 	}, nil
 }

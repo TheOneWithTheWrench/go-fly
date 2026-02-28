@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
@@ -15,8 +16,29 @@ type PruneStateStore struct {
 	path string
 }
 
-func NewPruneStateStore(path string) *PruneStateStore {
-	return &PruneStateStore{path: path}
+type PruneStateStoreOption interface {
+	apply(*pruneStateStoreOptions) error
+}
+
+type pruneStateStoreOptionFunc func(*pruneStateStoreOptions) error
+
+func (f pruneStateStoreOptionFunc) apply(opts *pruneStateStoreOptions) error {
+	return f(opts)
+}
+
+type pruneStateStoreOptions struct {
+	path string
+}
+
+func WithPruneStateStorePath(path string) PruneStateStoreOption {
+	return pruneStateStoreOptionFunc(func(opts *pruneStateStoreOptions) error {
+		if strings.TrimSpace(path) == "" {
+			return fmt.Errorf("prune state path required")
+		}
+
+		opts.path = path
+		return nil
+	})
 }
 
 const pruneAppName = "fly"
@@ -25,13 +47,24 @@ type PruneState struct {
 	LastPrunedAt time.Time `json:"last_pruned_at"`
 }
 
-func DefaultPruneStateStore() (*PruneStateStore, error) {
+func NewPruneStateStore(options ...PruneStateStoreOption) (*PruneStateStore, error) {
 	baseDir, err := internal.CacheDir(pruneAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
 
-	return &PruneStateStore{path: filepath.Join(baseDir, "prune.json")}, nil
+	opts := pruneStateStoreOptions{path: filepath.Join(baseDir, "prune.json")}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
+	}
+
+	return &PruneStateStore{path: opts.path}, nil
 }
 
 func (s *PruneStateStore) Load() (PruneState, bool, error) {

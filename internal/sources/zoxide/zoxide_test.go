@@ -203,7 +203,7 @@ func TestCommandLister(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 		var (
-			store, err = zoxide.DefaultStore()
+			store, err = zoxide.NewStore()
 		)
 		require.NoError(t, err)
 
@@ -239,7 +239,7 @@ func TestCommandLister(t *testing.T) {
 			root       = t.TempDir()
 			gitPath    = filepath.Join(root, "repo")
 			plain      = filepath.Join(root, "plain")
-			store, err = zoxide.DefaultStore()
+			store, err = zoxide.NewStore()
 		)
 		require.NoError(t, err)
 		require.NoError(t, os.MkdirAll(filepath.Join(gitPath, ".git"), 0o755))

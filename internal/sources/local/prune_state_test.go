@@ -12,15 +12,20 @@ import (
 
 func TestPruneStateStore(t *testing.T) {
 	var (
-		newStore = func(path string) *local.PruneStateStore {
-			return local.NewPruneStateStore(path)
+		newStore = func(t *testing.T, path string) *local.PruneStateStore {
+			t.Helper()
+
+			sut, err := local.NewPruneStateStore(local.WithPruneStateStorePath(path))
+			require.NoError(t, err)
+
+			return sut
 		}
 	)
 
 	t.Run("return empty when file missing", func(t *testing.T) {
 		var (
 			path = filepath.Join(t.TempDir(), "prune.json")
-			sut  = newStore(path)
+			sut  = newStore(t, path)
 		)
 
 		got, exists, err := sut.Load()
@@ -33,7 +38,7 @@ func TestPruneStateStore(t *testing.T) {
 	t.Run("save and load state", func(t *testing.T) {
 		var (
 			path  = filepath.Join(t.TempDir(), "prune.json")
-			sut   = newStore(path)
+			sut   = newStore(t, path)
 			when  = time.Date(2026, 2, 19, 13, 0, 0, 0, time.UTC)
 			state = local.PruneState{LastPrunedAt: when}
 		)

@@ -13,15 +13,20 @@ import (
 
 func TestStore(t *testing.T) {
 	var (
-		newStore = func(path string) *remote.RemoteStore {
-			return remote.NewRemoteStore(path)
+		newStore = func(t *testing.T, path string) *remote.RemoteStore {
+			t.Helper()
+
+			sut, err := remote.NewRemoteStore(remote.WithStorePath(path))
+			require.NoError(t, err)
+
+			return sut
 		}
 	)
 
 	t.Run("return empty when file missing", func(t *testing.T) {
 		var (
 			path = filepath.Join(t.TempDir(), "remote.json")
-			sut  = newStore(path)
+			sut  = newStore(t, path)
 		)
 
 		got, exists, err := sut.Load()
@@ -35,7 +40,7 @@ func TestStore(t *testing.T) {
 	t.Run("save and load cache", func(t *testing.T) {
 		var (
 			path  = filepath.Join(t.TempDir(), "remote.json")
-			sut   = newStore(path)
+			sut   = newStore(t, path)
 			when  = time.Date(2026, 2, 19, 10, 30, 0, 0, time.UTC)
 			cache = remote.Cache{
 				FetchedAt: when,

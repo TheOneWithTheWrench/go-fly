@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
@@ -21,22 +22,54 @@ type Store struct {
 	path string
 }
 
+type StoreOption interface {
+	apply(*storeOptions) error
+}
+
+type storeOptionFunc func(*storeOptions) error
+
+func (f storeOptionFunc) apply(opts *storeOptions) error {
+	return f(opts)
+}
+
+type storeOptions struct {
+	path string
+}
+
 const (
 	zoxideStoreAppName  = "fly"
 	zoxideStoreFileName = "zoxide.json"
 )
 
-func NewStore(path string) *Store {
-	return &Store{path: path}
+func WithStorePath(path string) StoreOption {
+	return storeOptionFunc(func(opts *storeOptions) error {
+		if strings.TrimSpace(path) == "" {
+			return fmt.Errorf("store path required")
+		}
+
+		opts.path = path
+		return nil
+	})
 }
 
-func DefaultStore() (*Store, error) {
+func NewStore(options ...StoreOption) (*Store, error) {
 	baseDir, err := internal.CacheDir(zoxideStoreAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
 
-	return &Store{path: filepath.Join(baseDir, zoxideStoreFileName)}, nil
+	opts := storeOptions{path: filepath.Join(baseDir, zoxideStoreFileName)}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
+	}
+
+	return &Store{path: opts.path}, nil
 }
 
 func (s *Store) Load() (Cache, bool, error) {

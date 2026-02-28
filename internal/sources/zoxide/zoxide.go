@@ -135,7 +135,7 @@ func NewCommandLister(runner internal.Runner) (*CommandLister, error) {
 		shell = "sh"
 	}
 
-	store, err := DefaultStore()
+	store, err := NewStore()
 	if err != nil {
 		return nil, err
 	}

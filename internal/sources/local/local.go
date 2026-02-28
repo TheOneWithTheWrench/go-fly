@@ -17,11 +17,11 @@ type Source struct {
 }
 
 func New(pruneLaunch internal.Pruner) (*Source, error) {
-	store, err := DefaultIndexStore()
+	store, err := NewIndexStore()
 	if err != nil {
 		return nil, err
 	}
-	pruneStore, err := DefaultPruneStateStore()
+	pruneStore, err := NewPruneStateStore()
 	if err != nil {
 		return nil, err
 	}

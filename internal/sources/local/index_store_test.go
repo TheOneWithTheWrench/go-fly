@@ -12,15 +12,20 @@ import (
 
 func TestStoreLoad(t *testing.T) {
 	var (
-		newStore = func(path string) *local.IndexStore {
-			return local.NewIndexStore(path)
+		newStore = func(t *testing.T, path string) *local.IndexStore {
+			t.Helper()
+
+			sut, err := local.NewIndexStore(local.WithIndexStorePath(path))
+			require.NoError(t, err)
+
+			return sut
 		}
 	)
 
 	t.Run("return empty when file missing", func(t *testing.T) {
 		var (
 			path = filepath.Join(t.TempDir(), "index.json")
-			sut  = newStore(path)
+			sut  = newStore(t, path)
 		)
 
 		entries, err := sut.Load()
@@ -32,15 +37,20 @@ func TestStoreLoad(t *testing.T) {
 
 func TestStoreUpsert(t *testing.T) {
 	var (
-		newStore = func(path string) *local.IndexStore {
-			return local.NewIndexStore(path)
+		newStore = func(t *testing.T, path string) *local.IndexStore {
+			t.Helper()
+
+			sut, err := local.NewIndexStore(local.WithIndexStorePath(path))
+			require.NoError(t, err)
+
+			return sut
 		}
 	)
 
 	t.Run("replace by matching path", func(t *testing.T) {
 		var (
 			path    = filepath.Join(t.TempDir(), "index.json")
-			sut     = newStore(path)
+			sut     = newStore(t, path)
 			initial = []internal.Entry{{Name: "old", Path: "/tmp/repo"}}
 		)
 
@@ -63,15 +73,20 @@ func TestStoreUpsert(t *testing.T) {
 
 func TestStoreSaveLoad(t *testing.T) {
 	var (
-		newStore = func(path string) *local.IndexStore {
-			return local.NewIndexStore(path)
+		newStore = func(t *testing.T, path string) *local.IndexStore {
+			t.Helper()
+
+			sut, err := local.NewIndexStore(local.WithIndexStorePath(path))
+			require.NoError(t, err)
+
+			return sut
 		}
 	)
 
 	t.Run("save and load entries", func(t *testing.T) {
 		var (
 			path    = filepath.Join(t.TempDir(), "index.json")
-			sut     = newStore(path)
+			sut     = newStore(t, path)
 			entries = []internal.Entry{{Name: "repo", Path: "/tmp/repo"}}
 		)
 

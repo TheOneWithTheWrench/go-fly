@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
@@ -20,22 +21,54 @@ type RemoteStore struct {
 	path string
 }
 
+type StoreOption interface {
+	apply(*storeOptions) error
+}
+
+type storeOptionFunc func(*storeOptions) error
+
+func (f storeOptionFunc) apply(opts *storeOptions) error {
+	return f(opts)
+}
+
+type storeOptions struct {
+	path string
+}
+
 const (
 	remoteAppName  = "fly"
 	remoteFileName = "remote.json"
 )
 
-func NewRemoteStore(path string) *RemoteStore {
-	return &RemoteStore{path: path}
+func WithStorePath(path string) StoreOption {
+	return storeOptionFunc(func(opts *storeOptions) error {
+		if strings.TrimSpace(path) == "" {
+			return fmt.Errorf("store path required")
+		}
+
+		opts.path = path
+		return nil
+	})
 }
 
-func DefaultRemoteStore() (*RemoteStore, error) {
+func NewRemoteStore(options ...StoreOption) (*RemoteStore, error) {
 	baseDir, err := internal.CacheDir(remoteAppName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve cache dir: %w", err)
 	}
 
-	return &RemoteStore{path: filepath.Join(baseDir, remoteFileName)}, nil
+	opts := storeOptions{path: filepath.Join(baseDir, remoteFileName)}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
+	}
+
+	return &RemoteStore{path: opts.path}, nil
 }
 
 func (s *RemoteStore) Load() (Cache, bool, error) {
