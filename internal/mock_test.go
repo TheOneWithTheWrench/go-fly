@@ -275,7 +275,7 @@ var _ internal.Source = &SourceMock{}
 //
 //		// make and configure a mocked internal.Source
 //		mockedSource := &SourceMock{
-//			LoadFunc: func(query string) ([]internal.Candidate, error) {
+//			LoadFunc: func(contextMoqParam context.Context, s string) ([]internal.Candidate, error) {
 //				panic("mock out the Load method")
 //			},
 //			ResolveFunc: func(candidate internal.Candidate) (string, error) {
@@ -289,7 +289,7 @@ var _ internal.Source = &SourceMock{}
 //	}
 type SourceMock struct {
 	// LoadFunc mocks the Load method.
-	LoadFunc func(query string) ([]internal.Candidate, error)
+	LoadFunc func(contextMoqParam context.Context, s string) ([]internal.Candidate, error)
 
 	// ResolveFunc mocks the Resolve method.
 	ResolveFunc func(candidate internal.Candidate) (string, error)
@@ -298,8 +298,10 @@ type SourceMock struct {
 	calls struct {
 		// Load holds details about calls to the Load method.
 		Load []struct {
-			// Query is the query argument value.
-			Query string
+			// ContextMoqParam is the contextMoqParam argument value.
+			ContextMoqParam context.Context
+			// S is the s argument value.
+			S string
 		}
 		// Resolve holds details about calls to the Resolve method.
 		Resolve []struct {
@@ -312,19 +314,21 @@ type SourceMock struct {
 }
 
 // Load calls LoadFunc.
-func (mock *SourceMock) Load(query string) ([]internal.Candidate, error) {
+func (mock *SourceMock) Load(contextMoqParam context.Context, s string) ([]internal.Candidate, error) {
 	if mock.LoadFunc == nil {
 		panic("SourceMock.LoadFunc: method is nil but Source.Load was just called")
 	}
 	callInfo := struct {
-		Query string
+		ContextMoqParam context.Context
+		S               string
 	}{
-		Query: query,
+		ContextMoqParam: contextMoqParam,
+		S:               s,
 	}
 	mock.lockLoad.Lock()
 	mock.calls.Load = append(mock.calls.Load, callInfo)
 	mock.lockLoad.Unlock()
-	return mock.LoadFunc(query)
+	return mock.LoadFunc(contextMoqParam, s)
 }
 
 // LoadCalls gets all the calls that were made to Load.
@@ -332,10 +336,12 @@ func (mock *SourceMock) Load(query string) ([]internal.Candidate, error) {
 //
 //	len(mockedSource.LoadCalls())
 func (mock *SourceMock) LoadCalls() []struct {
-	Query string
+	ContextMoqParam context.Context
+	S               string
 } {
 	var calls []struct {
-		Query string
+		ContextMoqParam context.Context
+		S               string
 	}
 	mock.lockLoad.RLock()
 	calls = mock.calls.Load

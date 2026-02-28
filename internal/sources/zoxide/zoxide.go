@@ -27,6 +27,10 @@ type Source struct {
 	lister Lister
 }
 
+type refreshableLister interface {
+	Refresh(context.Context) error
+}
+
 func New(lister Lister) (*Source, error) {
 	if lister == nil {
 		return nil, fmt.Errorf("zoxide lister required")
@@ -35,8 +39,8 @@ func New(lister Lister) (*Source, error) {
 	return &Source{lister: lister}, nil
 }
 
-func (s *Source) Load(query string) ([]internal.Candidate, error) {
-	matches, err := s.lister.List(context.Background())
+func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, error) {
+	matches, err := s.lister.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +61,15 @@ func (s *Source) Load(query string) ([]internal.Candidate, error) {
 	}
 
 	return candidates, nil
+}
+
+func (s *Source) Refresh(ctx context.Context) error {
+	if refresher, ok := s.lister.(refreshableLister); ok {
+		return refresher.Refresh(ctx)
+	}
+
+	_, err := s.lister.List(ctx)
+	return err
 }
 
 func localCandidate(match Match) (internal.Candidate, bool) {
@@ -170,6 +183,30 @@ func (l *CommandLister) List(ctx context.Context) ([]Match, error) {
 	}
 
 	return result, nil
+}
+
+func (l *CommandLister) Refresh(ctx context.Context) error {
+	cache, _, err := l.store.Load()
+	if err != nil {
+		cache = Cache{}
+	}
+
+	result, backend, err := l.listWithFallback(ctx, cache.Backend)
+	if err != nil {
+		return wrapListError(err)
+	}
+
+	filtered := filterGitMatches(result)
+	err = l.store.Save(Cache{
+		FetchedAt: l.now().UTC(),
+		Backend:   backend,
+		Matches:   filtered,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 const (

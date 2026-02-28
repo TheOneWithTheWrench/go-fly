@@ -6,7 +6,7 @@ import (
 )
 
 type Source interface {
-	Load(query string) ([]Candidate, error)
+	Load(context.Context, string) ([]Candidate, error)
 	Resolve(Candidate) (string, error)
 }
 

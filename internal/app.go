@@ -28,17 +28,50 @@ type Cloner interface {
 	Clone(Repo) (string, error)
 }
 
-func NewApp(sources []Source, picker Picker) (*App, error) {
+type AppOption interface {
+	apply(*appOptions) error
+}
+
+type appOptionFunc func(*appOptions) error
+
+func (f appOptionFunc) apply(opts *appOptions) error {
+	return f(opts)
+}
+
+type appOptions struct {
+	picker Picker
+}
+
+func WithPicker(picker Picker) AppOption {
+	return appOptionFunc(func(opts *appOptions) error {
+		if picker == nil {
+			return fmt.Errorf("picker required")
+		}
+
+		opts.picker = picker
+		return nil
+	})
+}
+
+func NewApp(sources []Source, options ...AppOption) (*App, error) {
 	if len(sources) == 0 {
 		return nil, fmt.Errorf("sources required")
 	}
-	if picker == nil {
-		return nil, fmt.Errorf("picker required")
+
+	opts := appOptions{picker: PickerFunc(Pick)}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+
+		if err := option.apply(&opts); err != nil {
+			return nil, err
+		}
 	}
 
 	return &App{
 		sources: sources,
-		picker:  picker,
+		picker:  opts.picker,
 	}, nil
 }
 
@@ -70,8 +103,8 @@ func (a *App) Track(repoPath string) error {
 	return nil
 }
 
-func (a *App) Query(query string, stdout io.Writer) error {
-	candidates, err := a.loadSources(query)
+func (a *App) Query(ctx context.Context, query string, stdout io.Writer) error {
+	candidates, err := a.loadSources(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -135,20 +168,24 @@ func (a *App) selectCandidate(query string, candidates []Candidate) (*Candidate,
 	return &selected, nil
 }
 
-func (a *App) loadSources(query string) ([]Candidate, error) {
+func (a *App) loadSources(ctx context.Context, query string) ([]Candidate, error) {
 	var (
 		candidates []Candidate
 		noRepos    int
+		firstErr   error
 	)
 
 	for _, source := range a.sources {
-		result, err := source.Load(query)
+		result, err := source.Load(ctx, query)
 		if err != nil {
 			if errors.Is(err, ErrNoReposTracked) {
 				noRepos++
 				continue
 			}
-			return nil, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
 
 		for _, candidate := range result {
@@ -165,6 +202,9 @@ func (a *App) loadSources(query string) ([]Candidate, error) {
 
 	if noRepos == len(a.sources) {
 		return nil, ErrNoReposTracked
+	}
+	if len(candidates) == 0 && firstErr != nil {
+		return nil, firstErr
 	}
 
 	return candidates, nil

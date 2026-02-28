@@ -79,7 +79,9 @@ func New(fetcher Fetcher, refreshLaunch internal.Refresher, sourceOptions ...Opt
 	}, nil
 }
 
-func (s *Source) Load(query string) ([]internal.Candidate, error) {
+func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, error) {
+	_ = ctx
+
 	cache, exists, err := s.store.Load()
 	if err != nil {
 		cache = Cache{}

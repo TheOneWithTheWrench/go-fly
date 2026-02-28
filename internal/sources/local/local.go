@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -37,7 +38,9 @@ func New(pruneLaunch internal.Pruner) (*Source, error) {
 	}, nil
 }
 
-func (s *Source) Load(query string) ([]internal.Candidate, error) {
+func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, error) {
+	_ = ctx
+
 	entries, err := s.store.Load()
 	if err != nil {
 		return nil, err

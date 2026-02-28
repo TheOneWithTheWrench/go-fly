@@ -59,7 +59,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 			return appInstance.Track(absRoot)
 		},
 		Query: func(query string, out io.Writer) error {
-			return appInstance.Query(query, out)
+			return appInstance.Query(context.Background(), query, out)
 		},
 	})
 }
@@ -87,17 +87,12 @@ func newApp() (*fly.App, error) {
 
 	appInstance, err := fly.NewApp(
 		[]fly.Source{zoxideSource, remoteSource},
-		newPickerFunc(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return appInstance, nil
-}
-
-func newPickerFunc() fly.Picker {
-	return fly.PickerFunc(fly.Pick)
 }
 
 func newRefresherFunc() fly.RefresherFunc {

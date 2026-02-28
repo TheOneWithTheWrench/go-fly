@@ -24,7 +24,7 @@ func TestSourceLoad(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, loadErr := sut.Load("")
+		_, loadErr := sut.Load(context.Background(), "")
 
 		assert.ErrorIs(t, loadErr, internal.ErrNoReposTracked)
 	})
@@ -45,7 +45,7 @@ func TestSourceLoad(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		result, loadErr := sut.Load("alp")
+		result, loadErr := sut.Load(context.Background(), "alp")
 
 		require.NoError(t, loadErr)
 		require.Len(t, result, 1)
@@ -69,7 +69,7 @@ func TestSourceLoad(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		result, loadErr := sut.Load("")
+		result, loadErr := sut.Load(context.Background(), "")
 
 		require.NoError(t, loadErr)
 		assert.Empty(t, result)
@@ -84,9 +84,72 @@ func TestSourceLoad(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, loadErr := sut.Load("")
+		_, loadErr := sut.Load(context.Background(), "")
 
 		assert.ErrorIs(t, loadErr, expectedErr)
+	})
+}
+
+func TestSourceRefresh(t *testing.T) {
+	t.Run("use lister refresh when available", func(t *testing.T) {
+		var (
+			listCalled    = false
+			refreshCalled = false
+			lister        = &refreshingLister{
+				ListFunc: func(context.Context) ([]zoxide.Match, error) {
+					listCalled = true
+					return nil, nil
+				},
+				RefreshFunc: func(context.Context) error {
+					refreshCalled = true
+					return nil
+				},
+			}
+		)
+
+		sut, err := zoxide.New(lister)
+		require.NoError(t, err)
+
+		err = sut.Refresh(context.Background())
+
+		require.NoError(t, err)
+		assert.True(t, refreshCalled)
+		assert.False(t, listCalled)
+	})
+
+	t.Run("fallback to list when lister does not implement refresh", func(t *testing.T) {
+		var (
+			listCalled = false
+			lister     = &ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+				listCalled = true
+				return nil, nil
+			}}
+		)
+
+		sut, err := zoxide.New(lister)
+		require.NoError(t, err)
+
+		err = sut.Refresh(context.Background())
+
+		require.NoError(t, err)
+		assert.True(t, listCalled)
+	})
+
+	t.Run("propagate refresh errors", func(t *testing.T) {
+		var (
+			expectedErr = errors.New("refresh failed")
+			lister      = &refreshingLister{RefreshFunc: func(context.Context) error {
+				return expectedErr
+			}}
+		)
+
+		sut, err := zoxide.New(lister)
+		require.NoError(t, err)
+
+		err = sut.Refresh(context.Background())
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, expectedErr)
 	})
 }
 
@@ -275,4 +338,69 @@ func TestCommandLister(t *testing.T) {
 		assert.Equal(t, "zoxide", cache.Backend)
 		assert.False(t, cache.FetchedAt.IsZero())
 	})
+
+	t.Run("refresh updates cache even when cache is fresh", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		var (
+			root       = t.TempDir()
+			gitPath    = filepath.Join(root, "repo")
+			plain      = filepath.Join(root, "plain")
+			store, err = zoxide.NewStore()
+		)
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(filepath.Join(gitPath, ".git"), 0o755))
+		require.NoError(t, os.MkdirAll(plain, 0o755))
+		require.NoError(t, store.Save(zoxide.Cache{
+			FetchedAt: time.Now().UTC(),
+			Backend:   "zoxide",
+			Matches:   []zoxide.Match{{Path: "/tmp/old", Score: 1}},
+		}))
+
+		var (
+			calls  = 0
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				calls++
+				assert.Equal(t, "zoxide", name)
+				assert.Equal(t, []string{"query", "--list", "--score"}, args)
+				return []byte("10 " + gitPath + "\n9 " + plain + "\n"), nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		err = sut.Refresh(context.Background())
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, calls)
+
+		cache, exists, err := store.Load()
+		require.NoError(t, err)
+		assert.True(t, exists)
+		require.Len(t, cache.Matches, 1)
+		assert.Equal(t, gitPath, cache.Matches[0].Path)
+		assert.Equal(t, 10.0, cache.Matches[0].Score)
+	})
+}
+
+type refreshingLister struct {
+	ListFunc    func(context.Context) ([]zoxide.Match, error)
+	RefreshFunc func(context.Context) error
+}
+
+func (l *refreshingLister) List(ctx context.Context) ([]zoxide.Match, error) {
+	if l.ListFunc == nil {
+		return nil, nil
+	}
+
+	return l.ListFunc(ctx)
+}
+
+func (l *refreshingLister) Refresh(ctx context.Context) error {
+	if l.RefreshFunc == nil {
+		return nil
+	}
+
+	return l.RefreshFunc(ctx)
 }
