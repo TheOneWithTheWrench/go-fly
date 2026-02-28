@@ -16,35 +16,28 @@ type PruneStateStore struct {
 	path string
 }
 
-type PruneStateStoreOption interface {
-	apply(*pruneStateStoreOptions) error
-}
-
-type pruneStateStoreOptionFunc func(*pruneStateStoreOptions) error
-
-func (f pruneStateStoreOptionFunc) apply(opts *pruneStateStoreOptions) error {
-	return f(opts)
-}
+type PruneStateStoreOption func(*pruneStateStoreOptions) error
 
 type pruneStateStoreOptions struct {
 	path string
 }
 
 func WithPruneStateStorePath(path string) PruneStateStoreOption {
-	return pruneStateStoreOptionFunc(func(opts *pruneStateStoreOptions) error {
+	return func(opts *pruneStateStoreOptions) error {
 		if strings.TrimSpace(path) == "" {
 			return fmt.Errorf("prune state path required")
 		}
 
 		opts.path = path
 		return nil
-	})
+	}
 }
 
 const pruneAppName = "fly"
 
 type PruneState struct {
 	LastPrunedAt time.Time `json:"last_pruned_at"`
+	StartedAt    time.Time `json:"started_at"`
 }
 
 func NewPruneStateStore(options ...PruneStateStoreOption) (*PruneStateStore, error) {
@@ -59,7 +52,7 @@ func NewPruneStateStore(options ...PruneStateStoreOption) (*PruneStateStore, err
 			continue
 		}
 
-		if err := option.apply(&opts); err != nil {
+		if err := option(&opts); err != nil {
 			return nil, err
 		}
 	}

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
@@ -12,71 +14,120 @@ import (
 
 type Source struct {
 	store         *RemoteStore
+	refreshState  *RefreshStateStore
 	fetcher       Fetcher
 	refreshLaunch internal.Refresher
 	cloner        internal.Cloner
 	now           func() time.Time
+	refreshMu     sync.Mutex
 }
 
 type Fetcher interface {
 	FetchAll(context.Context) ([]internal.Repo, error)
 }
 
-type Option interface {
-	apply(*options) error
-}
-
-type optionFunc func(*options) error
-
-func (f optionFunc) apply(opts *options) error {
-	return f(opts)
-}
+type Option func(*options) error
 
 type options struct {
-	cloner internal.Cloner
+	fetcher       Fetcher
+	cloner        internal.Cloner
+	runner        internal.Runner
+	refreshLaunch internal.Refresher
+}
+
+func WithFetcher(fetcher Fetcher) Option {
+	return func(opts *options) error {
+		if fetcher == nil {
+			return fmt.Errorf("remote fetcher required")
+		}
+
+		opts.fetcher = fetcher
+		return nil
+	}
 }
 
 func WithCloner(cloner internal.Cloner) Option {
-	return optionFunc(func(opts *options) error {
+	return func(opts *options) error {
 		if cloner == nil {
 			return fmt.Errorf("cloner required")
 		}
 
 		opts.cloner = cloner
 		return nil
-	})
+	}
 }
 
-func New(fetcher Fetcher, refreshLaunch internal.Refresher, sourceOptions ...Option) (*Source, error) {
+func WithRunner(runner internal.Runner) Option {
+	return func(opts *options) error {
+		if runner == nil {
+			return fmt.Errorf("runner required")
+		}
+
+		opts.runner = runner
+		return nil
+	}
+}
+
+func WithRefreshLauncher(refreshLaunch internal.Refresher) Option {
+	return func(opts *options) error {
+		if refreshLaunch == nil {
+			return fmt.Errorf("refresh launcher required")
+		}
+
+		opts.refreshLaunch = refreshLaunch
+		return nil
+	}
+}
+
+func New(sourceOptions ...Option) (*Source, error) {
 	store, err := NewRemoteStore()
 	if err != nil {
 		return nil, err
 	}
-	if fetcher == nil {
-		return nil, fmt.Errorf("remote fetcher required")
-	}
-	if refreshLaunch == nil {
-		return nil, fmt.Errorf("refresh launcher required")
+	refreshState, err := NewRefreshStateStore()
+	if err != nil {
+		return nil, err
 	}
 
-	opts := options{cloner: NewGitHubCloner(os.Stdin, os.Stderr)}
+	opts := options{
+		cloner:        NewGitHubCloner(os.Stdin, os.Stderr),
+		runner:        defaultRunner(),
+		refreshLaunch: newDetachedRefresher(),
+	}
 	for _, option := range sourceOptions {
 		if option == nil {
 			continue
 		}
 
-		if err := option.apply(&opts); err != nil {
+		if err := option(&opts); err != nil {
 			return nil, err
 		}
 	}
 
+	if opts.fetcher == nil {
+		opts.fetcher = NewGitHubFetcher(opts.runner)
+	}
+
 	return &Source{
 		store:         store,
-		fetcher:       fetcher,
-		refreshLaunch: refreshLaunch,
+		refreshState:  refreshState,
+		fetcher:       opts.fetcher,
+		refreshLaunch: opts.refreshLaunch,
 		cloner:        opts.cloner,
 		now:           time.Now,
 	}, nil
+}
+
+func defaultRunner() internal.Runner {
+	return internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, name, args...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return output, fmt.Errorf("run %s %v: %w: %s", name, args, err, output)
+		}
+
+		return output, nil
+	})
 }
 
 func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, error) {
@@ -89,7 +140,7 @@ func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, 
 	}
 
 	if ShouldRefresh(cache, exists) {
-		s.refreshLaunch.Launch()
+		s.launchRefresh()
 	}
 
 	total := len(cache.Repos)
@@ -111,6 +162,23 @@ func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, 
 	}
 
 	return candidates, nil
+}
+
+func (s *Source) launchRefresh() {
+	s.refreshMu.Lock()
+	defer s.refreshMu.Unlock()
+
+	state, exists, err := s.refreshState.Load()
+	if err == nil && !ShouldLaunchRefresh(state, exists, s.now()) {
+		return
+	}
+
+	now := s.now().UTC()
+	if err := s.refreshState.Save(RefreshState{StartedAt: now}); err != nil {
+		return
+	}
+
+	s.refreshLaunch.Launch()
 }
 
 func FilterRepos(query string, repos []internal.Repo) []internal.Repo {

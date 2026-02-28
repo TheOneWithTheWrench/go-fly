@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	fly "github.com/TheOneWithTheWrench/go-fly/internal"
@@ -65,22 +64,12 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func newApp() (*fly.App, error) {
-	var (
-		runner  = newRunnerFunc()
-		fetcher = remote.NewGitHubFetcher(runner)
-	)
-
-	remoteSource, err := remote.New(fetcher, newRefresherFunc())
+	remoteSource, err := remote.New()
 	if err != nil {
 		return nil, err
 	}
 
-	lister, err := zoxide.NewCommandLister(runner)
-	if err != nil {
-		return nil, err
-	}
-
-	zoxideSource, err := zoxide.New(lister)
+	zoxideSource, err := zoxide.New()
 	if err != nil {
 		return nil, err
 	}
@@ -93,51 +82,4 @@ func newApp() (*fly.App, error) {
 	}
 
 	return appInstance, nil
-}
-
-func newRefresherFunc() fly.RefresherFunc {
-	return fly.RefresherFunc(func() {
-		exe, err := os.Executable()
-		if err != nil {
-			return
-		}
-
-		cmd := exec.Command(exe, "refresh")
-		cmd.Stdout = io.Discard
-		cmd.Stderr = io.Discard
-		if err := cmd.Start(); err != nil {
-			return
-		}
-
-		_ = cmd.Process.Release()
-	})
-}
-
-func newPrunerFunc() fly.PrunerFunc {
-	return fly.PrunerFunc(func() {
-		exe, err := os.Executable()
-		if err != nil {
-			return
-		}
-
-		cmd := exec.Command(exe, "_prune")
-		cmd.Stdout = io.Discard
-		cmd.Stderr = io.Discard
-		if err := cmd.Start(); err != nil {
-			return
-		}
-
-		_ = cmd.Process.Release()
-	})
-}
-
-func newRunnerFunc() fly.RunnerFunc {
-	return fly.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, name, args...)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return output, fmt.Errorf("run %s %v: %w: %s", name, args, err, output)
-		}
-		return output, nil
-	})
 }

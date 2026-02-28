@@ -28,29 +28,21 @@ type Cloner interface {
 	Clone(Repo) (string, error)
 }
 
-type AppOption interface {
-	apply(*appOptions) error
-}
-
-type appOptionFunc func(*appOptions) error
-
-func (f appOptionFunc) apply(opts *appOptions) error {
-	return f(opts)
-}
+type AppOption func(*appOptions) error
 
 type appOptions struct {
 	picker Picker
 }
 
 func WithPicker(picker Picker) AppOption {
-	return appOptionFunc(func(opts *appOptions) error {
+	return func(opts *appOptions) error {
 		if picker == nil {
 			return fmt.Errorf("picker required")
 		}
 
 		opts.picker = picker
 		return nil
-	})
+	}
 }
 
 func NewApp(sources []Source, options ...AppOption) (*App, error) {
@@ -64,7 +56,7 @@ func NewApp(sources []Source, options ...AppOption) (*App, error) {
 			continue
 		}
 
-		if err := option.apply(&opts); err != nil {
+		if err := option(&opts); err != nil {
 			return nil, err
 		}
 	}

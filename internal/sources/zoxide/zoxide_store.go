@@ -22,15 +22,7 @@ type Store struct {
 	path string
 }
 
-type StoreOption interface {
-	apply(*storeOptions) error
-}
-
-type storeOptionFunc func(*storeOptions) error
-
-func (f storeOptionFunc) apply(opts *storeOptions) error {
-	return f(opts)
-}
+type StoreOption func(*storeOptions) error
 
 type storeOptions struct {
 	path string
@@ -42,14 +34,14 @@ const (
 )
 
 func WithStorePath(path string) StoreOption {
-	return storeOptionFunc(func(opts *storeOptions) error {
+	return func(opts *storeOptions) error {
 		if strings.TrimSpace(path) == "" {
 			return fmt.Errorf("store path required")
 		}
 
 		opts.path = path
 		return nil
-	})
+	}
 }
 
 func NewStore(options ...StoreOption) (*Store, error) {
@@ -64,7 +56,7 @@ func NewStore(options ...StoreOption) (*Store, error) {
 			continue
 		}
 
-		if err := option.apply(&opts); err != nil {
+		if err := option(&opts); err != nil {
 			return nil, err
 		}
 	}

@@ -18,9 +18,9 @@ import (
 func TestSourceLoad(t *testing.T) {
 	t.Run("return no repos tracked when zoxide has no entries", func(t *testing.T) {
 		var (
-			sut, err = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+			sut, err = zoxide.New(zoxide.WithLister(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
 				return nil, nil
-			}})
+			}}))
 		)
 		require.NoError(t, err)
 
@@ -39,9 +39,9 @@ func TestSourceLoad(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(betaPath, ".git"), 0o755))
 
 		var (
-			sut, err = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+			sut, err = zoxide.New(zoxide.WithLister(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
 				return []zoxide.Match{{Path: alphaPath, Score: 20}, {Path: betaPath, Score: 10}}, nil
-			}})
+			}}))
 		)
 		require.NoError(t, err)
 
@@ -63,9 +63,9 @@ func TestSourceLoad(t *testing.T) {
 		require.NoError(t, os.MkdirAll(invalid, 0o755))
 
 		var (
-			sut, err = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+			sut, err = zoxide.New(zoxide.WithLister(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
 				return []zoxide.Match{{Path: invalid, Score: 42}}, nil
-			}})
+			}}))
 		)
 		require.NoError(t, err)
 
@@ -78,9 +78,9 @@ func TestSourceLoad(t *testing.T) {
 	t.Run("propagate lister errors", func(t *testing.T) {
 		var (
 			expectedErr = errors.New("boom")
-			sut, err    = zoxide.New(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
+			sut, err    = zoxide.New(zoxide.WithLister(&ListerMock{ListFunc: func(context.Context) ([]zoxide.Match, error) {
 				return nil, expectedErr
-			}})
+			}}))
 		)
 		require.NoError(t, err)
 
@@ -107,7 +107,7 @@ func TestSourceRefresh(t *testing.T) {
 			}
 		)
 
-		sut, err := zoxide.New(lister)
+		sut, err := zoxide.New(zoxide.WithLister(lister))
 		require.NoError(t, err)
 
 		err = sut.Refresh(context.Background())
@@ -126,7 +126,7 @@ func TestSourceRefresh(t *testing.T) {
 			}}
 		)
 
-		sut, err := zoxide.New(lister)
+		sut, err := zoxide.New(zoxide.WithLister(lister))
 		require.NoError(t, err)
 
 		err = sut.Refresh(context.Background())
@@ -143,7 +143,7 @@ func TestSourceRefresh(t *testing.T) {
 			}}
 		)
 
-		sut, err := zoxide.New(lister)
+		sut, err := zoxide.New(zoxide.WithLister(lister))
 		require.NoError(t, err)
 
 		err = sut.Refresh(context.Background())

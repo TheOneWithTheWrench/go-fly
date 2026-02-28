@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
@@ -15,9 +16,27 @@ type Source struct {
 	pruneStore  *PruneStateStore
 	pruneLaunch internal.Pruner
 	now         func() time.Time
+	pruneMu     sync.Mutex
 }
 
-func New(pruneLaunch internal.Pruner) (*Source, error) {
+type Option func(*options) error
+
+type options struct {
+	pruneLaunch internal.Pruner
+}
+
+func WithPruneLauncher(pruneLaunch internal.Pruner) Option {
+	return func(opts *options) error {
+		if pruneLaunch == nil {
+			return fmt.Errorf("prune launcher required")
+		}
+
+		opts.pruneLaunch = pruneLaunch
+		return nil
+	}
+}
+
+func New(sourceOptions ...Option) (*Source, error) {
 	store, err := NewIndexStore()
 	if err != nil {
 		return nil, err
@@ -26,14 +45,22 @@ func New(pruneLaunch internal.Pruner) (*Source, error) {
 	if err != nil {
 		return nil, err
 	}
-	if pruneLaunch == nil {
-		return nil, fmt.Errorf("prune launcher required")
+
+	opts := options{pruneLaunch: newDetachedPruner()}
+	for _, option := range sourceOptions {
+		if option == nil {
+			continue
+		}
+
+		if err := option(&opts); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Source{
 		store:       store,
 		pruneStore:  pruneStore,
-		pruneLaunch: pruneLaunch,
+		pruneLaunch: opts.pruneLaunch,
 		now:         time.Now,
 	}, nil
 }
@@ -121,7 +148,8 @@ func (s *Source) Prune() error {
 		return err
 	}
 
-	state := PruneState{LastPrunedAt: s.now().UTC()}
+	now := s.now().UTC()
+	state := PruneState{LastPrunedAt: now, StartedAt: now}
 	return s.pruneStore.Save(state)
 }
 
@@ -143,8 +171,24 @@ func (s *Source) loadPruneAndMaybeStart() {
 	}
 
 	if ShouldPrune(state, exists) {
-		s.pruneLaunch.Launch()
+		s.launchPrune(state, exists)
 	}
+}
+
+func (s *Source) launchPrune(state PruneState, exists bool) {
+	s.pruneMu.Lock()
+	defer s.pruneMu.Unlock()
+
+	if !ShouldLaunchPrune(state, exists, s.now()) {
+		return
+	}
+
+	startedAt := s.now().UTC()
+	if err := s.pruneStore.Save(PruneState{LastPrunedAt: state.LastPrunedAt, StartedAt: startedAt}); err != nil {
+		return
+	}
+
+	s.pruneLaunch.Launch()
 }
 
 func removeEntry(entries []internal.Entry, path string) []internal.Entry {

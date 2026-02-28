@@ -27,16 +27,50 @@ type Source struct {
 	lister Lister
 }
 
+type SourceOption func(*sourceOptions) error
+
+type sourceOptions struct {
+	lister Lister
+}
+
 type refreshableLister interface {
 	Refresh(context.Context) error
 }
 
-func New(lister Lister) (*Source, error) {
-	if lister == nil {
-		return nil, fmt.Errorf("zoxide lister required")
+func WithLister(lister Lister) SourceOption {
+	return func(opts *sourceOptions) error {
+		if lister == nil {
+			return fmt.Errorf("zoxide lister required")
+		}
+
+		opts.lister = lister
+		return nil
+	}
+}
+
+func New(options ...SourceOption) (*Source, error) {
+	opts := sourceOptions{}
+
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+
+		if err := option(&opts); err != nil {
+			return nil, err
+		}
 	}
 
-	return &Source{lister: lister}, nil
+	if opts.lister == nil {
+		lister, err := NewCommandLister(defaultRunner())
+		if err != nil {
+			return nil, err
+		}
+
+		opts.lister = lister
+	}
+
+	return &Source{lister: opts.lister}, nil
 }
 
 func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, error) {
@@ -288,6 +322,18 @@ func (l *CommandLister) runAndParse(ctx context.Context, name string, args ...st
 	}
 
 	return nil, nil
+}
+
+func defaultRunner() internal.Runner {
+	return internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, name, args...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return output, fmt.Errorf("run %s %v: %w: %s", name, args, err, output)
+		}
+
+		return output, nil
+	})
 }
 
 func wrapListError(err error) error {

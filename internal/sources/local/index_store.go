@@ -15,15 +15,7 @@ type IndexStore struct {
 	path string
 }
 
-type IndexStoreOption interface {
-	apply(*indexStoreOptions) error
-}
-
-type indexStoreOptionFunc func(*indexStoreOptions) error
-
-func (f indexStoreOptionFunc) apply(opts *indexStoreOptions) error {
-	return f(opts)
-}
+type IndexStoreOption func(*indexStoreOptions) error
 
 type indexStoreOptions struct {
 	path string
@@ -35,14 +27,14 @@ const (
 )
 
 func WithIndexStorePath(path string) IndexStoreOption {
-	return indexStoreOptionFunc(func(opts *indexStoreOptions) error {
+	return func(opts *indexStoreOptions) error {
 		if strings.TrimSpace(path) == "" {
 			return fmt.Errorf("index path required")
 		}
 
 		opts.path = path
 		return nil
-	})
+	}
 }
 
 func NewIndexStore(options ...IndexStoreOption) (*IndexStore, error) {
@@ -57,7 +49,7 @@ func NewIndexStore(options ...IndexStoreOption) (*IndexStore, error) {
 			continue
 		}
 
-		if err := option.apply(&opts); err != nil {
+		if err := option(&opts); err != nil {
 			return nil, err
 		}
 	}

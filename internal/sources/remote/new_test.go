@@ -3,6 +3,7 @@ package remote_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
@@ -11,31 +12,10 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	t.Run("return error when fetcher is missing", func(t *testing.T) {
-		_, err := remote.New(nil, internal.RefresherFunc(func() {}))
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "remote fetcher required")
-	})
-
-	t.Run("return error when refresher is missing", func(t *testing.T) {
-		fetcher := &FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
-			return nil, nil
-		}}
-
-		_, err := remote.New(fetcher, nil)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "refresh launcher required")
-	})
-
-	t.Run("create source with default cloner", func(t *testing.T) {
+	t.Run("create source with defaults", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", t.TempDir())
-		fetcher := &FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
-			return nil, nil
-		}}
 
-		sut, err := remote.New(fetcher, internal.RefresherFunc(func() {}))
+		sut, err := remote.New()
 
 		require.NoError(t, err)
 		require.NotNil(t, sut)
@@ -43,15 +23,32 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewOptions(t *testing.T) {
-	t.Run("return error when with cloner option has nil cloner", func(t *testing.T) {
-		fetcher := &FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
-			return nil, nil
-		}}
+	t.Run("return error when with fetcher option has nil fetcher", func(t *testing.T) {
+		_, err := remote.New(remote.WithFetcher(nil))
 
-		_, err := remote.New(fetcher, internal.RefresherFunc(func() {}), remote.WithCloner(nil))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "remote fetcher required")
+	})
+
+	t.Run("return error when with cloner option has nil cloner", func(t *testing.T) {
+		_, err := remote.New(remote.WithCloner(nil))
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cloner required")
+	})
+
+	t.Run("return error when with runner option has nil runner", func(t *testing.T) {
+		_, err := remote.New(remote.WithRunner(nil))
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "runner required")
+	})
+
+	t.Run("return error when with refresh launcher option has nil refresher", func(t *testing.T) {
+		_, err := remote.New(remote.WithRefreshLauncher(nil))
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "refresh launcher required")
 	})
 
 	t.Run("use provided cloner in resolve", func(t *testing.T) {
@@ -63,8 +60,7 @@ func TestNewOptions(t *testing.T) {
 			}}
 			called   = false
 			sut, err = remote.New(
-				fetcher,
-				internal.RefresherFunc(func() {}),
+				remote.WithFetcher(fetcher),
 				remote.WithCloner(internal.ClonerFunc(func(repo internal.Repo) (string, error) {
 					called = true
 					assert.Equal(t, "acme/repo", repo.FullName)
@@ -82,5 +78,78 @@ func TestNewOptions(t *testing.T) {
 		require.NoError(t, resolveErr)
 		assert.True(t, called)
 		assert.Equal(t, "/tmp/repo", path)
+	})
+
+	t.Run("launch refresh only once while stale", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		var (
+			store, err = remote.NewRemoteStore()
+		)
+		require.NoError(t, err)
+		require.NoError(t, store.Save(remote.Cache{
+			FetchedAt: time.Now().Add(-remote.RefreshTTL).Add(-time.Minute),
+			Repos: []internal.Repo{
+				{Name: "repo", FullName: "acme/repo", SSHURL: "git@github.com:acme/repo.git"},
+			},
+		}))
+
+		var launches int
+		sut, err := remote.New(
+			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+				return nil, nil
+			}}),
+			remote.WithRefreshLauncher(internal.RefresherFunc(func() {
+				launches++
+			})),
+		)
+		require.NoError(t, err)
+
+		_, err = sut.Load(context.Background(), "")
+		require.NoError(t, err)
+		_, err = sut.Load(context.Background(), "")
+		require.NoError(t, err)
+
+		assert.Equal(t, 1, launches)
+	})
+
+	t.Run("launch refresh once across multiple source instances", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		store, err := remote.NewRemoteStore()
+		require.NoError(t, err)
+		require.NoError(t, store.Save(remote.Cache{
+			FetchedAt: time.Now().Add(-remote.RefreshTTL).Add(-time.Minute),
+			Repos: []internal.Repo{
+				{Name: "repo", FullName: "acme/repo", SSHURL: "git@github.com:acme/repo.git"},
+			},
+		}))
+
+		var launches int
+		newSource := func(t *testing.T) *remote.Source {
+			t.Helper()
+
+			sut, newErr := remote.New(
+				remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+					return nil, nil
+				}}),
+				remote.WithRefreshLauncher(internal.RefresherFunc(func() {
+					launches++
+				})),
+			)
+			require.NoError(t, newErr)
+
+			return sut
+		}
+
+		sut1 := newSource(t)
+		sut2 := newSource(t)
+
+		_, err = sut1.Load(context.Background(), "")
+		require.NoError(t, err)
+		_, err = sut2.Load(context.Background(), "")
+		require.NoError(t, err)
+
+		assert.Equal(t, 1, launches)
 	})
 }
