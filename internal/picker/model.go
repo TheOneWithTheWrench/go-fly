@@ -7,12 +7,12 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/layout"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type WindowPosition = layout.WindowPosition
@@ -73,7 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		key := msg.String()
 		if isKeyCancel(key) {
 			m.ok = false
@@ -121,7 +121,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	var lines []string
 	if m.config.Title != "" {
 		lines = append(lines, titleStyle.Render(m.config.Title))
@@ -137,7 +137,11 @@ func (m Model) View() string {
 	}
 
 	lines = append(lines, helpStyle.Render(helpLine))
-	return strings.Join(lines, "\n")
+
+	v := tea.NewView(strings.Join(lines, "\n"))
+	v.AltScreen = true
+
+	return v
 }
 
 func (m *Model) MoveCursorUp() {

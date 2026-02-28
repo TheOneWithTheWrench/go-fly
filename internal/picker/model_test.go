@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,13 +28,13 @@ func TestModel(t *testing.T) {
 
 			return newTestModelWithItems(pickerItems, query, opts...)
 		}
-		sendKey = func(model Model, key tea.KeyType) Model {
-			msg := tea.KeyMsg{Type: key}
+		sendKey = func(model Model, key tea.KeyPressMsg) Model {
+			msg := key
 			updated, _ := model.Update(msg)
 			return updated.(Model)
 		}
 		sendKeyRune = func(model Model, key rune) Model {
-			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}}
+			msg := tea.KeyPressMsg{Code: key, Text: string(key)}
 			updated, _ := model.Update(msg)
 			return updated.(Model)
 		}
@@ -55,10 +55,10 @@ func TestModel(t *testing.T) {
 			model = newTestModel(items, "")
 		)
 
-		model = sendKey(model, tea.KeyDown)
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyDown})
 		assert.Equal(t, 1, model.CursorIndex())
 
-		model = sendKey(model, tea.KeyCtrlP)
+		model = sendKey(model, tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 		assert.Equal(t, 0, model.CursorIndex())
 	})
 
@@ -82,10 +82,10 @@ func TestModel(t *testing.T) {
 		)
 		model.height = 5
 
-		model = sendKey(model, tea.KeyCtrlD)
+		model = sendKey(model, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 		assert.Equal(t, 1, model.CursorIndex())
 
-		model = sendKey(model, tea.KeyCtrlU)
+		model = sendKey(model, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 		assert.Equal(t, 0, model.CursorIndex())
 	})
 
@@ -95,8 +95,8 @@ func TestModel(t *testing.T) {
 			model = newTestModel(items, "")
 		)
 
-		model = sendKey(model, tea.KeyDown)
-		model = sendKey(model, tea.KeyEnter)
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyDown})
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 		result := model.Result()
 		assert.True(t, result.OK)
@@ -109,7 +109,7 @@ func TestModel(t *testing.T) {
 			model = newTestModel(items, "")
 		)
 
-		model = sendKey(model, tea.KeyEsc)
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyEsc})
 
 		result := model.Result()
 		assert.False(t, result.OK)
@@ -127,7 +127,7 @@ func TestModel(t *testing.T) {
 		}}
 
 		model := newTestModelWithItems(items, "")
-		model = sendKey(model, tea.KeyEnter)
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 		result := model.Result()
 		require.True(t, result.OK)
@@ -146,7 +146,7 @@ func TestModel(t *testing.T) {
 			)
 		)
 
-		lines := strings.Split(model.View(), "\n")
+		lines := strings.Split(model.View().Content, "\n")
 		require.Len(t, lines, 4)
 		assert.Contains(t, lines[0], "beta")
 		assert.Contains(t, lines[1], "alpha")
@@ -164,10 +164,10 @@ func TestModel(t *testing.T) {
 			)
 		)
 
-		model = sendKey(model, tea.KeyDown)
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyDown})
 		assert.Equal(t, 0, model.CursorIndex())
 
-		model = sendKey(model, tea.KeyUp)
+		model = sendKey(model, tea.KeyPressMsg{Code: tea.KeyUp})
 		assert.Equal(t, 1, model.CursorIndex())
 	})
 
@@ -181,7 +181,7 @@ func TestModel(t *testing.T) {
 			)
 		)
 
-		lines := strings.Split(model.View(), "\n")
+		lines := strings.Split(model.View().Content, "\n")
 		require.Len(t, lines, 4)
 		assert.Contains(t, lines[0], "Pick a repo")
 		assert.Contains(t, lines[1], model.input.View())
@@ -195,7 +195,7 @@ func TestModel(t *testing.T) {
 			model = newTestModel(items, "alp")
 		)
 
-		view := model.View()
+		view := model.View().Content
 		assert.Contains(t, view, highlightStyle.Render("alp"))
 	})
 
@@ -209,7 +209,7 @@ func TestModel(t *testing.T) {
 			)
 		)
 
-		view := model.View()
+		view := model.View().Content
 		assert.Contains(t, view, highlightStyle.Render("a"))
 		assert.Contains(t, view, highlightStyle.Render("p"))
 	})

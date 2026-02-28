@@ -3,13 +3,11 @@ package picker
 import (
 	"fmt"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/item"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/matchers/orderedchars"
 	"github.com/TheOneWithTheWrench/go-fly/internal/picker/sorters/minipick"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 type Result struct {
@@ -37,13 +35,10 @@ func Run(items []Item, query string, opts ...Option) (Result, error) {
 		opt(&config)
 	}
 
-	lipgloss.SetColorProfile(termenv.NewOutput(config.Output).Profile)
-
 	pickerModel := newModel(items, query, config)
 	program := tea.NewProgram(
 		pickerModel,
 		tea.WithOutput(config.Output),
-		tea.WithAltScreen(),
 	)
 
 	final, err := program.Run()
@@ -64,10 +59,15 @@ func newModel(items []Item, query string, config Config) Model {
 	input := textinput.New()
 	input.Prompt = config.Prompt
 	input.SetValue(query)
-	input.Focus()
-	input.PromptStyle = cursorStyle
-	input.TextStyle = inputStyle
-	input.Cursor.Style = cursorStyle
+	_ = input.Focus()
+
+	styles := input.Styles()
+	styles.Focused.Prompt = cursorStyle
+	styles.Focused.Text = inputStyle
+	styles.Blurred.Prompt = cursorStyle
+	styles.Blurred.Text = inputStyle
+	styles.Cursor.Color = paletteAccentCyan
+	input.SetStyles(styles)
 
 	return newModelWithConfig(items, config, input)
 }
