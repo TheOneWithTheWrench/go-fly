@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 )
@@ -120,6 +121,8 @@ func filterMatches(query string, matches []Match) []Match {
 type CommandLister struct {
 	runner internal.Runner
 	shell  string
+	store  *Store
+	now    func() time.Time
 }
 
 func NewCommandLister(runner internal.Runner) (*CommandLister, error) {
@@ -132,32 +135,109 @@ func NewCommandLister(runner internal.Runner) (*CommandLister, error) {
 		shell = "sh"
 	}
 
-	return &CommandLister{runner: runner, shell: shell}, nil
+	store, err := DefaultStore()
+	if err != nil {
+		return nil, err
+	}
+
+	return &CommandLister{runner: runner, shell: shell, store: store, now: time.Now}, nil
 }
 
 func (l *CommandLister) List(ctx context.Context) ([]Match, error) {
-	result, err := l.runAndParse(ctx, "zoxide", "query", "--list", "--score")
-	if err == nil {
-		return result, nil
+	cache, exists, err := l.store.Load()
+	if err != nil {
+		cache = Cache{}
+		exists = false
 	}
-	if !isCommandNotFound(err) {
+
+	if !ShouldRefresh(cache, exists) {
+		return cache.Matches, nil
+	}
+
+	result, backend, err := l.listWithFallback(ctx, cache.Backend)
+	if err != nil {
 		return nil, wrapListError(err)
 	}
 
-	result, err = l.runAndParse(ctx, "z", "-l")
-	if err == nil {
-		return result, nil
-	}
-	if !isCommandNotFound(err) {
-		return nil, wrapListError(err)
-	}
-
-	result, err = l.runAndParse(ctx, l.shell, "-ic", "z -l")
-	if err == nil {
+	filtered := filterGitMatches(result)
+	err = l.store.Save(Cache{
+		FetchedAt: l.now().UTC(),
+		Backend:   backend,
+		Matches:   filtered,
+	})
+	if err != nil {
 		return result, nil
 	}
 
-	return nil, wrapListError(err)
+	return result, nil
+}
+
+const (
+	backendZoxide = "zoxide"
+	backendZ      = "z"
+	backendShell  = "shell"
+)
+
+func (l *CommandLister) listWithFallback(ctx context.Context, preferredBackend string) ([]Match, string, error) {
+	backends := backendOrder(preferredBackend)
+	var lastErr error
+
+	for _, backend := range backends {
+		result, err := l.runBackend(ctx, backend)
+		if err == nil {
+			return result, backend, nil
+		}
+		if !isCommandNotFound(err) {
+			return nil, "", err
+		}
+
+		lastErr = err
+	}
+
+	if lastErr == nil {
+		return nil, "", fmt.Errorf("no zoxide backends configured")
+	}
+
+	return nil, "", lastErr
+}
+
+func (l *CommandLister) runBackend(ctx context.Context, backend string) ([]Match, error) {
+	switch backend {
+	case backendZoxide:
+		return l.runAndParse(ctx, "zoxide", "query", "--list", "--score")
+	case backendZ:
+		return l.runAndParse(ctx, "z", "-l")
+	case backendShell:
+		return l.runAndParse(ctx, l.shell, "-ic", "z -l")
+	default:
+		return nil, fmt.Errorf("unsupported zoxide backend: %s", backend)
+	}
+}
+
+func backendOrder(preferred string) []string {
+	order := []string{backendZoxide, backendZ, backendShell}
+	if !isSupportedBackend(preferred) {
+		return order
+	}
+
+	prioritized := []string{preferred}
+	for _, backend := range order {
+		if backend == preferred {
+			continue
+		}
+		prioritized = append(prioritized, backend)
+	}
+
+	return prioritized
+}
+
+func isSupportedBackend(backend string) bool {
+	switch backend {
+	case backendZoxide, backendZ, backendShell:
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *CommandLister) runAndParse(ctx context.Context, name string, args ...string) ([]Match, error) {
@@ -175,6 +255,21 @@ func (l *CommandLister) runAndParse(ctx context.Context, name string, args ...st
 
 func wrapListError(err error) error {
 	return fmt.Errorf("list zoxide entries: %w", err)
+}
+
+func filterGitMatches(matches []Match) []Match {
+	filtered := make([]Match, 0, len(matches))
+
+	for _, match := range matches {
+		valid, err := internal.CheckDestination(match.Path)
+		if err != nil || !valid {
+			continue
+		}
+
+		filtered = append(filtered, match)
+	}
+
+	return filtered
 }
 
 func parseOutput(output string) []Match {

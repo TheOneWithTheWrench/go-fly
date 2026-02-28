@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/zoxide"
@@ -91,6 +92,8 @@ func TestSourceLoad(t *testing.T) {
 
 func TestCommandLister(t *testing.T) {
 	t.Run("parse zoxide command output", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
 		var (
 			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
 				assert.Equal(t, "zoxide", name)
@@ -114,6 +117,7 @@ func TestCommandLister(t *testing.T) {
 
 	t.Run("fallback to z shell function when zoxide binary missing", func(t *testing.T) {
 		t.Setenv("SHELL", "zsh")
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 		var (
 			calls  = 0
@@ -149,6 +153,8 @@ func TestCommandLister(t *testing.T) {
 	})
 
 	t.Run("fallback to direct z command when zoxide binary missing", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
 		var (
 			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
 				if name == "zoxide" {
@@ -176,6 +182,8 @@ func TestCommandLister(t *testing.T) {
 	})
 
 	t.Run("do not fallback on non not-found errors", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
 		var (
 			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
 				return nil, errors.New("permission denied")
@@ -189,5 +197,82 @@ func TestCommandLister(t *testing.T) {
 
 		require.Error(t, listErr)
 		assert.Contains(t, listErr.Error(), "permission denied")
+	})
+
+	t.Run("use fresh cache without executing commands", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		var (
+			store, err = zoxide.DefaultStore()
+		)
+		require.NoError(t, err)
+
+		err = store.Save(zoxide.Cache{
+			FetchedAt: time.Now().UTC(),
+			Backend:   "shell",
+			Matches:   []zoxide.Match{{Path: "/tmp/repo", Score: 10}},
+		})
+		require.NoError(t, err)
+
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				t.Fatalf("unexpected command execution: %s %v", name, args)
+				return nil, nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		result, listErr := sut.List(context.Background())
+
+		require.NoError(t, listErr)
+		require.Len(t, result, 1)
+		assert.Equal(t, "/tmp/repo", result[0].Path)
+		assert.Equal(t, 10.0, result[0].Score)
+	})
+
+	t.Run("cache only git repos when refreshing stale entries", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		var (
+			root       = t.TempDir()
+			gitPath    = filepath.Join(root, "repo")
+			plain      = filepath.Join(root, "plain")
+			store, err = zoxide.DefaultStore()
+		)
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(filepath.Join(gitPath, ".git"), 0o755))
+		require.NoError(t, os.MkdirAll(plain, 0o755))
+		require.NoError(t, store.Save(zoxide.Cache{
+			FetchedAt: time.Now().Add(-zoxide.RefreshTTL).Add(-time.Minute).UTC(),
+			Backend:   "zoxide",
+			Matches:   []zoxide.Match{{Path: "/tmp/old", Score: 1}},
+		}))
+
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				assert.Equal(t, "zoxide", name)
+				assert.Equal(t, []string{"query", "--list", "--score"}, args)
+				return []byte("10 " + gitPath + "\n9 " + plain + "\n"), nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		result, listErr := sut.List(context.Background())
+
+		require.NoError(t, listErr)
+		require.Len(t, result, 2)
+
+		cache, exists, err := store.Load()
+		require.NoError(t, err)
+		assert.True(t, exists)
+		require.Len(t, cache.Matches, 1)
+		assert.Equal(t, gitPath, cache.Matches[0].Path)
+		assert.Equal(t, 10.0, cache.Matches[0].Score)
+		assert.Equal(t, "zoxide", cache.Backend)
+		assert.False(t, cache.FetchedAt.IsZero())
 	})
 }
