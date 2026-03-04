@@ -38,16 +38,55 @@ fly refresh
 - `fly refresh`: fetch GitHub repos and update the local cache.
 
 ## Config
-`fly` reads config from `~/.config/fly/config.toml` (or `$FLY_CONFIG` if set).
+`fly` is configurable.
 
-To set a default directory for remote clones:
+- Default config path: `~/.config/fly/config.toml`
+- Override path with: `FLY_CONFIG=/path/to/config.toml`
+- If no config file exists, `fly` uses built-in defaults.
+
+Full default config (equivalent to running with no config file):
 
 ```toml
 version = 1
 
 [clone]
-default_directory = "/absolute/path/to/repos"
+default_directory = ""
+
+[sources]
+enabled = ["zoxide", "remote"]
+
+[picker]
+title = ""
+prompt_marker = "> "
+window_position = "bottom"
+matcher = "orderedchars"
+sorter = "signal_minipick"
 ```
 
-When `clone.default_directory` is set, remote repos clone there by default.
-Use `fly -c <query>` to override that and clone into the current working directory.
+Available options:
+
+- `version`: config schema version. Currently `1`.
+- `clone.default_directory`: default destination for remote clones. Empty means current working directory. `fly -c <query>` always clones into current working directory. Use an absolute path or `~/...`.
+
+  Example:
+
+  ```toml
+  [clone]
+  default_directory = "~/projects"
+  # or: default_directory = "/home/your-user/projects"
+  ```
+- `sources.enabled`:
+  - `zoxide`: include repos discovered from your zoxide database (with zoxide score signal)
+  - `remote`: include cached GitHub repos (cloned on selection)
+  - `local`: include repos tracked directly by `fly track`
+- `picker.title`: optional picker title (empty to hide)
+- `picker.prompt_marker`: prompt prefix for the query input
+- `picker.window_position`:
+  - `top`: prompt at top, list shown in natural order
+  - `bottom`: prompt at bottom, list shown in reverse order
+- `picker.matcher`:
+  - `orderedchars`: query chars must appear in order (not necessarily contiguous)
+  - `substring`: query must appear as a contiguous, case-insensitive substring
+- `picker.sorter`:
+  - `minipick`: mini.pick-inspired sorting by tighter match width first, then earlier match start
+  - `signal_minipick`: prioritize items with zoxide score signal, then fall back to `minipick`
