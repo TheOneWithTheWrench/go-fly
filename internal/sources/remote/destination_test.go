@@ -16,7 +16,7 @@ func TestDestination(t *testing.T) {
 			cwd = t.TempDir()
 		)
 
-		got, err := remote.Destination(internal.Repo{Name: "go-fly", FullName: "TheOneWithTheWrench/go-fly"}, cwd)
+		got, err := remote.Destination(internal.Repo{Name: "go-fly", FullName: "TheOneWithTheWrench/go-fly"}, cwd, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, filepath.Join(cwd, "go-fly"), got)
@@ -27,9 +27,20 @@ func TestDestination(t *testing.T) {
 			cwd = t.TempDir()
 		)
 
-		got, err := remote.Destination(internal.Repo{FullName: "acme/service"}, cwd)
+		got, err := remote.Destination(internal.Repo{FullName: "acme/service"}, cwd, false)
 
 		require.NoError(t, err)
 		assert.Equal(t, filepath.Join(cwd, "service"), got)
+	})
+
+	t.Run("group by owner when enabled", func(t *testing.T) {
+		var (
+			cwd = t.TempDir()
+		)
+
+		got, err := remote.Destination(internal.Repo{Name: "service", FullName: "acme/service"}, cwd, true)
+
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(cwd, "acme", "service"), got)
 	})
 }

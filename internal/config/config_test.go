@@ -32,6 +32,7 @@ func TestLoad(t *testing.T) {
 
 [clone]
 default_directory = "/work/repos"
+group_by_owner = true
 
 [sources]
 enabled = ["remote", "zoxide", "local"]
@@ -49,6 +50,7 @@ sorter = "minipick"
 		require.NoError(t, err)
 		assert.Equal(t, 1, got.Version)
 		assert.Equal(t, "/work/repos", got.Clone.DefaultDirectory)
+		assert.True(t, got.Clone.GroupByOwner)
 		assert.Equal(t, []string{"remote", "zoxide", "local"}, got.Sources.Enabled)
 		assert.Equal(t, "Pick a repo", got.Picker.Title)
 		assert.Equal(t, "repo> ", got.Picker.PromptMarker)
@@ -64,6 +66,7 @@ sorter = "minipick"
 
 [clone]
 default_directory = "./repos"
+group_by_owner = false
 
 [sources]
 enabled = ["zoxide"]
@@ -78,6 +81,7 @@ sorter = "signal_minipick"
 
 		require.NoError(t, err)
 		assert.Equal(t, "./repos", got.Clone.DefaultDirectory)
+		assert.False(t, got.Clone.GroupByOwner)
 		assert.Equal(t, []string{"zoxide"}, got.Sources.Enabled)
 	})
 

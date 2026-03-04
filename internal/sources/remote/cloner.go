@@ -27,24 +27,33 @@ func (r execCommandRunner) Run(name string, args []string, stdin io.Reader, stdo
 }
 
 type GitHubCloner struct {
-	runner  commandRunner
-	getwd   func() (string, error)
-	stdin   io.Reader
-	stderr  io.Writer
-	baseDir string
+	runner       commandRunner
+	getwd        func() (string, error)
+	stdin        io.Reader
+	stderr       io.Writer
+	baseDir      string
+	groupByOwner bool
 }
 
 type GitHubClonerOption func(*gitHubClonerOptions) error
 
 type gitHubClonerOptions struct {
-	baseDir string
-	runner  commandRunner
-	getwd   func() (string, error)
+	baseDir      string
+	groupByOwner bool
+	runner       commandRunner
+	getwd        func() (string, error)
 }
 
 func withCloneBaseDir(baseDir string) GitHubClonerOption {
 	return func(opts *gitHubClonerOptions) error {
 		opts.baseDir = strings.TrimSpace(baseDir)
+		return nil
+	}
+}
+
+func withGroupByOwner(enabled bool) GitHubClonerOption {
+	return func(opts *gitHubClonerOptions) error {
+		opts.groupByOwner = enabled
 		return nil
 	}
 }
@@ -61,11 +70,12 @@ func NewGitHubCloner(stdin io.Reader, stderr io.Writer, optionFuncs ...GitHubClo
 	}
 
 	return &GitHubCloner{
-		runner:  defaultOpts.runner,
-		getwd:   defaultOpts.getwd,
-		stdin:   stdin,
-		stderr:  stderr,
-		baseDir: defaultOpts.baseDir,
+		runner:       defaultOpts.runner,
+		getwd:        defaultOpts.getwd,
+		stdin:        stdin,
+		stderr:       stderr,
+		baseDir:      defaultOpts.baseDir,
+		groupByOwner: defaultOpts.groupByOwner,
 	}, nil
 }
 
@@ -101,7 +111,7 @@ func (c *GitHubCloner) Clone(repo internal.Repo) (string, error) {
 		return "", err
 	}
 
-	dest, err := Destination(repo, baseDir)
+	dest, err := Destination(repo, baseDir, c.groupByOwner)
 	if err != nil {
 		return "", err
 	}

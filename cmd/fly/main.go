@@ -94,14 +94,18 @@ func newApp(cfg config.Config, forceCloneToCWD bool) (*fly.App, error) {
 }
 
 func newSourcesFromCfg(cfg config.Config, forceCloneToCWD bool) ([]fly.Source, error) {
-	cloneBaseDir := strings.TrimSpace(cfg.Clone.DefaultDirectory)
+	var (
+		cloneBaseDir = strings.TrimSpace(cfg.Clone.DefaultDirectory)
+		groupByOwner = cfg.Clone.GroupByOwner
+	)
+
 	if forceCloneToCWD {
 		cloneBaseDir = ""
 	}
 
 	sources := make([]fly.Source, 0, len(cfg.Sources.Enabled))
 	for _, sourceName := range cfg.Sources.Enabled {
-		source, err := newSource(sourceName, cloneBaseDir)
+		source, err := newSource(sourceName, cloneBaseDir, groupByOwner)
 		if err != nil {
 			return nil, err
 		}
@@ -123,14 +127,17 @@ func newPickerFromCfg(cfg config.Config) (fly.Picker, error) {
 	}), nil
 }
 
-func newSource(sourceName string, cloneBaseDir string) (fly.Source, error) {
+func newSource(sourceName string, cloneBaseDir string, groupByOwner bool) (fly.Source, error) {
 	switch strings.ToLower(strings.TrimSpace(sourceName)) {
 	case config.SourceLocal:
 		return local.New()
 	case config.SourceRemote:
-		return remote.New(
-			remote.WithCloneBaseDir(cloneBaseDir),
-		)
+		optionFuncs := []remote.Option{remote.WithCloneBaseDir(cloneBaseDir)}
+		if groupByOwner {
+			optionFuncs = append(optionFuncs, remote.WithCloneGroupByOwner())
+		}
+
+		return remote.New(optionFuncs...)
 	case config.SourceZoxide:
 		return zoxide.New()
 	default:

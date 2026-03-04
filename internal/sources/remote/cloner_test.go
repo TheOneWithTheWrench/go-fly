@@ -104,6 +104,27 @@ func TestGitHubCloner(t *testing.T) {
 		assert.Equal(t, []string{"repo", "clone", "acme/go-fly", filepath.Join(cloneRoot, "go-fly")}, runner.RunCalls()[0].Args)
 	})
 
+	t.Run("clone into owner directory when configured", func(t *testing.T) {
+		var (
+			cwd       = t.TempDir()
+			cloneRoot = t.TempDir()
+			repo      = internal.Repo{Name: "go-fly", FullName: "acme/go-fly"}
+			stdinBuf  = bytes.NewBufferString("input")
+			stderrBuf = bytes.NewBuffer(nil)
+			runner    = &commandRunnerMock{RunFunc: func(string, []string, io.Reader, io.Writer, io.Writer) error {
+				return nil
+			}}
+			sut = newSut(t, runner, func() (string, error) { return cwd, nil }, stdinBuf, stderrBuf, withCloneBaseDir(cloneRoot), withGroupByOwner(true))
+		)
+
+		got, err := sut.Clone(repo)
+
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(cloneRoot, "acme", "go-fly"), got)
+		require.Len(t, runner.RunCalls(), 1)
+		assert.Equal(t, []string{"repo", "clone", "acme/go-fly", filepath.Join(cloneRoot, "acme", "go-fly")}, runner.RunCalls()[0].Args)
+	})
+
 	t.Run("expand tilde in configured clone directory", func(t *testing.T) {
 		var (
 			homeDir   = t.TempDir()

@@ -46,6 +46,7 @@ type Config struct {
 
 type CloneConfig struct {
 	DefaultDirectory string `toml:"default_directory"`
+	GroupByOwner     bool   `toml:"group_by_owner"`
 }
 
 type SourcesConfig struct {

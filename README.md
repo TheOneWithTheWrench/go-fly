@@ -51,6 +51,7 @@ version = 1
 
 [clone]
 default_directory = ""
+group_by_owner = false
 
 [sources]
 enabled = ["zoxide", "remote"]
@@ -67,6 +68,7 @@ Available options:
 
 - `version`: config schema version. Currently `1`.
 - `clone.default_directory`: default destination for remote clones. Empty means current working directory. `fly -c <query>` always clones into current working directory. Use an absolute path or `~/...`.
+- `clone.group_by_owner`: when `true`, remote clones use `<base>/<owner>/<repo>` instead of `<base>/<repo>`.
 
   Example:
 

@@ -37,6 +37,26 @@ func TestNewOptions(t *testing.T) {
 		assert.Contains(t, err.Error(), "cloner required")
 	})
 
+	t.Run("return error when custom cloner and clone settings are combined", func(t *testing.T) {
+		_, err := remote.New(
+			remote.WithCloner(internal.ClonerFunc(func(repo internal.Repo) (string, error) { return "", nil })),
+			remote.WithCloneBaseDir("/tmp"),
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "mutually exclusive")
+	})
+
+	t.Run("return error when custom cloner and owner grouping are combined", func(t *testing.T) {
+		_, err := remote.New(
+			remote.WithCloner(internal.ClonerFunc(func(repo internal.Repo) (string, error) { return "", nil })),
+			remote.WithCloneGroupByOwner(),
+		)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "mutually exclusive")
+	})
+
 	t.Run("return error when with runner option has nil runner", func(t *testing.T) {
 		_, err := remote.New(remote.WithRunner(nil))
 

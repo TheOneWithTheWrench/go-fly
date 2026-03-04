@@ -32,6 +32,7 @@ type options struct {
 	fetcher       Fetcher
 	cloner        internal.Cloner
 	cloneBaseDir  string
+	groupByOwner  bool
 	runner        internal.Runner
 	refreshLaunch internal.Refresher
 }
@@ -61,6 +62,13 @@ func WithCloner(cloner internal.Cloner) Option {
 func WithCloneBaseDir(baseDir string) Option {
 	return func(opts *options) error {
 		opts.cloneBaseDir = strings.TrimSpace(baseDir)
+		return nil
+	}
+}
+
+func WithCloneGroupByOwner() Option {
+	return func(opts *options) error {
+		opts.groupByOwner = true
 		return nil
 	}
 }
@@ -99,14 +107,17 @@ func New(sourceOptions ...Option) (*Source, error) {
 		}
 	}
 
-	if defaultOpts.cloner != nil && defaultOpts.cloneBaseDir != "" {
-		return nil, fmt.Errorf("with cloner and clone base dir are mutually exclusive")
+	if defaultOpts.cloner != nil && (defaultOpts.cloneBaseDir != "" || defaultOpts.groupByOwner) {
+		return nil, fmt.Errorf("with cloner and clone config options are mutually exclusive")
 	}
 
 	if defaultOpts.cloner == nil {
-		clonerOptionFuncs := make([]GitHubClonerOption, 0, 1)
+		clonerOptionFuncs := make([]GitHubClonerOption, 0, 2)
 		if defaultOpts.cloneBaseDir != "" {
 			clonerOptionFuncs = append(clonerOptionFuncs, withCloneBaseDir(defaultOpts.cloneBaseDir))
+		}
+		if defaultOpts.groupByOwner {
+			clonerOptionFuncs = append(clonerOptionFuncs, withGroupByOwner(true))
 		}
 
 		defaultCloner, err := NewGitHubCloner(os.Stdin, os.Stderr, clonerOptionFuncs...)
