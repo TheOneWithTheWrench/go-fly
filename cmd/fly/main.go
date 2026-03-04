@@ -28,7 +28,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 
-	appInstance, err := newApp(cfg)
+	appInstance, err := newApp(cfg, isCloneToCWDInvocation(args))
 	if err != nil {
 		return err
 	}
@@ -65,14 +65,14 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 
 			return appInstance.Track(absRoot)
 		},
-		Query: func(query string, out io.Writer, optionFuncs ...fly.QueryOption) error {
-			return appInstance.Query(context.Background(), query, out, optionFuncs...)
+		Query: func(query string, out io.Writer) error {
+			return appInstance.Query(context.Background(), query, out)
 		},
 	})
 }
 
-func newApp(cfg config.Config) (*fly.App, error) {
-	sources, err := newSourcesFromCfg(cfg)
+func newApp(cfg config.Config, forceCloneToCWD bool) (*fly.App, error) {
+	sources, err := newSourcesFromCfg(cfg, forceCloneToCWD)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,11 @@ func newApp(cfg config.Config) (*fly.App, error) {
 	return appInstance, nil
 }
 
-func newSourcesFromCfg(cfg config.Config) ([]fly.Source, error) {
+func newSourcesFromCfg(cfg config.Config, forceCloneToCWD bool) ([]fly.Source, error) {
 	cloneBaseDir := strings.TrimSpace(cfg.Clone.DefaultDirectory)
+	if forceCloneToCWD {
+		cloneBaseDir = ""
+	}
 
 	sources := make([]fly.Source, 0, len(cfg.Sources.Enabled))
 	for _, sourceName := range cfg.Sources.Enabled {
@@ -133,4 +136,12 @@ func newSource(sourceName string, cloneBaseDir string) (fly.Source, error) {
 	default:
 		return nil, fmt.Errorf("unsupported source %q", sourceName)
 	}
+}
+
+func isCloneToCWDInvocation(args []string) bool {
+	if len(args) < 2 {
+		return false
+	}
+
+	return args[1] == fly.CloneToCWDFlag || args[1] == fly.CloneToCWDLongFlag
 }

@@ -30,22 +30,8 @@ type Cloner interface {
 
 type Option func(*options) error
 
-type QueryOption func(*queryOptions) error
-
-type ResolveOptions struct {
-	ForceCloneToCWD bool
-}
-
 type options struct {
 	picker Picker
-}
-
-type queryOptions struct {
-	forceCloneToCWD bool
-}
-
-type sourceWithResolveOptions interface {
-	ResolveWithOptions(Candidate, ResolveOptions) (string, error)
 }
 
 func WithPicker(picker Picker) Option {
@@ -55,13 +41,6 @@ func WithPicker(picker Picker) Option {
 		}
 
 		opts.picker = picker
-		return nil
-	}
-}
-
-func WithForceCloneToCWD() QueryOption {
-	return func(opts *queryOptions) error {
-		opts.forceCloneToCWD = true
 		return nil
 	}
 }
@@ -112,14 +91,7 @@ func (a *App) Track(repoPath string) error {
 	return nil
 }
 
-func (a *App) Query(ctx context.Context, query string, stdout io.Writer, optionFuncs ...QueryOption) error {
-	options := queryOptions{}
-	for _, optionFunc := range optionFuncs {
-		if err := optionFunc(&options); err != nil {
-			return err
-		}
-	}
-
+func (a *App) Query(ctx context.Context, query string, stdout io.Writer) error {
 	candidates, err := a.loadSources(ctx, query)
 	if err != nil {
 		return err
@@ -135,7 +107,7 @@ func (a *App) Query(ctx context.Context, query string, stdout io.Writer, optionF
 		return nil
 	}
 
-	path, err := a.resolveCandidate(*selected, ResolveOptions{ForceCloneToCWD: options.forceCloneToCWD})
+	path, err := a.resolveCandidate(*selected)
 	if err != nil {
 		return err
 	}
@@ -226,20 +198,12 @@ func (a *App) loadSources(ctx context.Context, query string) ([]Candidate, error
 	return candidates, nil
 }
 
-func (a *App) resolveCandidate(candidate Candidate, options ResolveOptions) (string, error) {
+func (a *App) resolveCandidate(candidate Candidate) (string, error) {
 	if candidate.resolver == nil {
 		return "", fmt.Errorf("no source to resolve candidate")
 	}
 
-	var (
-		path string
-		err  error
-	)
-	if resolver, ok := candidate.resolver.(sourceWithResolveOptions); ok {
-		path, err = resolver.ResolveWithOptions(candidate, options)
-	} else {
-		path, err = candidate.resolver.Resolve(candidate)
-	}
+	path, err := candidate.resolver.Resolve(candidate)
 	if err != nil {
 		if errors.Is(err, ErrUnsupportedCandidate) {
 			return "", fmt.Errorf("selected source cannot resolve candidate")

@@ -11,13 +11,12 @@ import (
 )
 
 type dependencies struct {
-	initCalled      int
-	refreshCalled   int
-	pruneCalled     int
-	trackCalled     int
-	queryCalled     int
-	lastQuery       string
-	lastOptionCount int
+	initCalled    int
+	refreshCalled int
+	pruneCalled   int
+	trackCalled   int
+	queryCalled   int
+	lastQuery     string
 }
 
 func TestRun(t *testing.T) {
@@ -42,10 +41,9 @@ func TestRun(t *testing.T) {
 						deps.trackCalled++
 						return nil
 					},
-					Query: func(query string, out io.Writer, optionFuncs ...internal.QueryOption) error {
+					Query: func(query string, out io.Writer) error {
 						deps.queryCalled++
 						deps.lastQuery = query
-						deps.lastOptionCount = len(optionFuncs)
 						return nil
 					},
 				})
@@ -70,7 +68,6 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 0, deps.trackCalled)
 		assert.Equal(t, 1, deps.queryCalled)
 		assert.Equal(t, "", deps.lastQuery)
-		assert.Equal(t, 0, deps.lastOptionCount)
 		assert.Empty(t, stderr.String())
 	})
 
@@ -183,7 +180,6 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 0, deps.trackCalled)
 		assert.Equal(t, 1, deps.queryCalled)
 		assert.Equal(t, "my repo", deps.lastQuery)
-		assert.Equal(t, 0, deps.lastOptionCount)
 	})
 
 	t.Run("routes query with clone-to-cwd flag", func(t *testing.T) {
@@ -203,7 +199,6 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 0, deps.trackCalled)
 		assert.Equal(t, 1, deps.queryCalled)
 		assert.Equal(t, "my repo", deps.lastQuery)
-		assert.Equal(t, 1, deps.lastOptionCount)
 	})
 
 	t.Run("treat command words as query when clone-to-cwd flag is set", func(t *testing.T) {
@@ -220,6 +215,5 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, 0, deps.refreshCalled)
 		assert.Equal(t, 1, deps.queryCalled)
 		assert.Equal(t, "refresh", deps.lastQuery)
-		assert.Equal(t, 1, deps.lastOptionCount)
 	})
 }

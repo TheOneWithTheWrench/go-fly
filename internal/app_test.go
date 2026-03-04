@@ -84,31 +84,6 @@ func (s resolverSource) Resolve(candidate internal.Candidate) (string, error) {
 	return s.resolveFunc(candidate)
 }
 
-type resolverSourceWithOptions struct {
-	source                 *SourceMock
-	resolveWithOptionsFunc func(internal.Candidate, internal.ResolveOptions) (string, error)
-}
-
-func (s resolverSourceWithOptions) Load(ctx context.Context, query string) ([]internal.Candidate, error) {
-	return s.source.Load(ctx, query)
-}
-
-func (s resolverSourceWithOptions) Resolve(candidate internal.Candidate) (string, error) {
-	if s.resolveWithOptionsFunc == nil {
-		return "", internal.ErrUnsupportedCandidate
-	}
-
-	return s.resolveWithOptionsFunc(candidate, internal.ResolveOptions{})
-}
-
-func (s resolverSourceWithOptions) ResolveWithOptions(candidate internal.Candidate, options internal.ResolveOptions) (string, error) {
-	if s.resolveWithOptionsFunc == nil {
-		return "", internal.ErrUnsupportedCandidate
-	}
-
-	return s.resolveWithOptionsFunc(candidate, options)
-}
-
 var (
 	newSut = func(t *testing.T, sources []internal.Source, picker internal.Picker) *internal.App {
 		app, err := internal.NewApp(sources, internal.WithPicker(picker))
@@ -465,12 +440,11 @@ func TestQuery(t *testing.T) {
 		assert.Equal(t, "/work/beta", trackCalls[0].S)
 	})
 
-	t.Run("forward query options to source resolve", func(t *testing.T) {
+	t.Run("resolve single remote candidate without picker", func(t *testing.T) {
 		var (
-			remoteSource = resolverSourceWithOptions{source: &SourceMock{LoadFunc: func(_ context.Context, query string) ([]internal.Candidate, error) {
+			remoteSource = resolverSource{source: &SourceMock{LoadFunc: func(_ context.Context, query string) ([]internal.Candidate, error) {
 				return []internal.Candidate{remoteCandidate(internal.Repo{Name: "beta", FullName: "acme/beta"})}, nil
-			}}, resolveWithOptionsFunc: func(candidate internal.Candidate, options internal.ResolveOptions) (string, error) {
-				assert.True(t, options.ForceCloneToCWD)
+			}}, resolveFunc: func(candidate internal.Candidate) (string, error) {
 				return "/work/beta", nil
 			}}
 			trackable = &TrackableMock{TrackFunc: func(path string) error { return nil }}
@@ -488,7 +462,7 @@ func TestQuery(t *testing.T) {
 			}}, trackable: trackable},
 		}, picker)
 
-		err := sut.Query(context.Background(), "beta", out, internal.WithForceCloneToCWD())
+		err := sut.Query(context.Background(), "beta", out)
 
 		require.NoError(t, err)
 		assert.Contains(t, out.String(), "/work/beta")
