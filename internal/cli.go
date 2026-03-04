@@ -11,10 +11,14 @@ type CliDependencies struct {
 	Refresh func() error
 	Prune   func() error
 	Track   func() error
-	Query   func(string, io.Writer) error
+	Query   func(string, io.Writer, ...QueryOption) error
 }
 
-const Usage = "usage: fly [query] | fly init | fly refresh | fly track"
+const (
+	CloneToCWDFlag     = "-c"
+	CloneToCWDLongFlag = "--cwd"
+	Usage              = "usage: fly [query] | fly -c [query] | fly init | fly refresh | fly track"
+)
 
 func Run(args []string, stdout io.Writer, stderr io.Writer, deps CliDependencies) error {
 	if len(args) < 2 {
@@ -31,33 +35,29 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, deps CliDependencies
 
 	switch args[1] {
 	case "init":
-		if deps.Init == nil {
-			return fmt.Errorf("init handler not configured")
-		}
 		return deps.Init(stdout)
 	case "refresh":
-		if deps.Refresh == nil {
-			return fmt.Errorf("refresh handler not configured")
-		}
 		return deps.Refresh()
 	case "_prune":
-		if deps.Prune == nil {
-			return fmt.Errorf("prune handler not configured")
-		}
 		return deps.Prune()
 	case "track":
-		if deps.Track == nil {
-			return fmt.Errorf("track handler not configured")
-		}
 		return deps.Track()
 	default:
-		if deps.Query == nil {
-			return fmt.Errorf("query handler not configured")
+		var (
+			queryParts   = args[1:]
+			queryOptions = make([]QueryOption, 0, 1)
+		)
+
+		if isCloneToCWDFlag(args[1]) {
+			queryOptions = append(queryOptions, WithForceCloneToCWD())
+			queryParts = args[2:]
 		}
-		query := ""
-		if len(args) > 1 {
-			query = strings.Join(args[1:], " ")
-		}
-		return deps.Query(query, stdout)
+
+		query := strings.Join(queryParts, " ")
+		return deps.Query(query, stdout, queryOptions...)
 	}
+}
+
+func isCloneToCWDFlag(value string) bool {
+	return value == CloneToCWDFlag || value == CloneToCWDLongFlag
 }

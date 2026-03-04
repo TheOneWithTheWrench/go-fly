@@ -30,6 +30,9 @@ func TestLoad(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, os.WriteFile(path, []byte(`version = 1
 
+[clone]
+default_directory = "/work/repos"
+
 [sources]
 enabled = ["remote", "zoxide", "local"]
 
@@ -45,6 +48,7 @@ sorter = "minipick"
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, got.Version)
+		assert.Equal(t, "/work/repos", got.Clone.DefaultDirectory)
 		assert.Equal(t, []string{"remote", "zoxide", "local"}, got.Sources.Enabled)
 		assert.Equal(t, "Pick a repo", got.Picker.Title)
 		assert.Equal(t, "repo> ", got.Picker.PromptMarker)
@@ -58,6 +62,9 @@ sorter = "minipick"
 		t.Setenv(EnvConfigPath, path)
 		require.NoError(t, os.WriteFile(path, []byte(`version = 1
 
+[clone]
+default_directory = "./repos"
+
 [sources]
 enabled = ["zoxide"]
 
@@ -70,6 +77,7 @@ sorter = "signal_minipick"
 		got, err := Load()
 
 		require.NoError(t, err)
+		assert.Equal(t, "./repos", got.Clone.DefaultDirectory)
 		assert.Equal(t, []string{"zoxide"}, got.Sources.Enabled)
 	})
 

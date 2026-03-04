@@ -23,7 +23,12 @@ func main() {
 }
 
 func run(args []string, stdout io.Writer, stderr io.Writer) error {
-	appInstance, err := newApp()
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	appInstance, err := newApp(cfg)
 	if err != nil {
 		return err
 	}
@@ -60,18 +65,13 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 
 			return appInstance.Track(absRoot)
 		},
-		Query: func(query string, out io.Writer) error {
-			return appInstance.Query(context.Background(), query, out)
+		Query: func(query string, out io.Writer, optionFuncs ...fly.QueryOption) error {
+			return appInstance.Query(context.Background(), query, out, optionFuncs...)
 		},
 	})
 }
 
-func newApp() (*fly.App, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, err
-	}
-
+func newApp(cfg config.Config) (*fly.App, error) {
 	sources, err := newSourcesFromCfg(cfg)
 	if err != nil {
 		return nil, err
@@ -94,9 +94,11 @@ func newApp() (*fly.App, error) {
 }
 
 func newSourcesFromCfg(cfg config.Config) ([]fly.Source, error) {
+	cloneBaseDir := strings.TrimSpace(cfg.Clone.DefaultDirectory)
+
 	sources := make([]fly.Source, 0, len(cfg.Sources.Enabled))
 	for _, sourceName := range cfg.Sources.Enabled {
-		source, err := newSource(sourceName)
+		source, err := newSource(sourceName, cloneBaseDir)
 		if err != nil {
 			return nil, err
 		}
@@ -118,12 +120,14 @@ func newPickerFromCfg(cfg config.Config) (fly.Picker, error) {
 	}), nil
 }
 
-func newSource(sourceName string) (fly.Source, error) {
+func newSource(sourceName string, cloneBaseDir string) (fly.Source, error) {
 	switch strings.ToLower(strings.TrimSpace(sourceName)) {
 	case config.SourceLocal:
 		return local.New()
 	case config.SourceRemote:
-		return remote.New()
+		return remote.New(
+			remote.WithCloneBaseDir(cloneBaseDir),
+		)
 	case config.SourceZoxide:
 		return zoxide.New()
 	default:

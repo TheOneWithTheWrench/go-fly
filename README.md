@@ -34,4 +34,20 @@ fly refresh
 ## Usage
 - `fly`: open the full list.
 - `fly <query>`: narrow the list and jump to a repo.
+- `fly -c <query>`: force remote clones into the current working directory for this run.
 - `fly refresh`: fetch GitHub repos and update the local cache.
+
+## Config
+`fly` reads config from `~/.config/fly/config.toml` (or `$FLY_CONFIG` if set).
+
+To set a default directory for remote clones:
+
+```toml
+version = 1
+
+[clone]
+default_directory = "/absolute/path/to/repos"
+```
+
+When `clone.default_directory` is set, remote repos clone there by default.
+Use `fly -c <query>` to override that and clone into the current working directory.

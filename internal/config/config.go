@@ -39,8 +39,13 @@ const (
 
 type Config struct {
 	Version int           `toml:"version"`
+	Clone   CloneConfig   `toml:"clone"`
 	Sources SourcesConfig `toml:"sources"`
 	Picker  PickerConfig  `toml:"picker"`
+}
+
+type CloneConfig struct {
+	DefaultDirectory string `toml:"default_directory"`
 }
 
 type SourcesConfig struct {
@@ -58,10 +63,11 @@ type PickerConfig struct {
 func Default() Config {
 	return Config{
 		Version: 1,
+		Clone:   CloneConfig{},
 		Sources: SourcesConfig{Enabled: []string{SourceZoxide, SourceRemote}},
 		Picker: PickerConfig{
 			PromptMarker:   "> ",
-			WindowPosition: WindowTop,
+			WindowPosition: WindowBottom,
 			Matcher:        MatcherOrderedChars,
 			Sorter:         SorterSignalMinipick,
 		},

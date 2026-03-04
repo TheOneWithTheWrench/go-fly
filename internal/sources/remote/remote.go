@@ -18,6 +18,7 @@ type Source struct {
 	fetcher       Fetcher
 	refreshLaunch internal.Refresher
 	cloner        internal.Cloner
+	cloneBaseDir  string
 	now           func() time.Time
 	refreshMu     sync.Mutex
 }
@@ -31,6 +32,7 @@ type Option func(*options) error
 type options struct {
 	fetcher       Fetcher
 	cloner        internal.Cloner
+	cloneBaseDir  string
 	runner        internal.Runner
 	refreshLaunch internal.Refresher
 }
@@ -53,6 +55,13 @@ func WithCloner(cloner internal.Cloner) Option {
 		}
 
 		opts.cloner = cloner
+		return nil
+	}
+}
+
+func WithCloneBaseDir(baseDir string) Option {
+	return func(opts *options) error {
+		opts.cloneBaseDir = strings.TrimSpace(baseDir)
 		return nil
 	}
 }
@@ -81,7 +90,6 @@ func WithRefreshLauncher(refreshLaunch internal.Refresher) Option {
 
 func New(sourceOptions ...Option) (*Source, error) {
 	defaultOpts := options{
-		cloner:        NewGitHubCloner(os.Stdin, os.Stderr),
 		runner:        defaultRunner(),
 		refreshLaunch: newDetachedRefresher(),
 	}
@@ -90,6 +98,19 @@ func New(sourceOptions ...Option) (*Source, error) {
 		if err := option(&defaultOpts); err != nil {
 			return nil, err
 		}
+	}
+
+	if defaultOpts.cloner == nil {
+		clonerOptionFuncs := make([]GitHubClonerOption, 0, 1)
+		if defaultOpts.cloneBaseDir != "" {
+			clonerOptionFuncs = append(clonerOptionFuncs, withCloneBaseDir(defaultOpts.cloneBaseDir))
+		}
+
+		defaultCloner, err := NewGitHubCloner(os.Stdin, os.Stderr, clonerOptionFuncs...)
+		if err != nil {
+			return nil, err
+		}
+		defaultOpts.cloner = defaultCloner
 	}
 
 	if defaultOpts.fetcher == nil {
@@ -111,6 +132,7 @@ func New(sourceOptions ...Option) (*Source, error) {
 		fetcher:       defaultOpts.fetcher,
 		refreshLaunch: defaultOpts.refreshLaunch,
 		cloner:        defaultOpts.cloner,
+		cloneBaseDir:  defaultOpts.cloneBaseDir,
 		now:           time.Now,
 	}, nil
 }
@@ -198,6 +220,23 @@ func FilterRepos(query string, repos []internal.Repo) []internal.Repo {
 }
 
 func (s *Source) Resolve(candidate internal.Candidate) (string, error) {
+	return s.resolveWithCloner(candidate, s.cloner)
+}
+
+func (s *Source) ResolveWithOptions(candidate internal.Candidate, options internal.ResolveOptions) (string, error) {
+	if !options.ForceCloneToCWD || strings.TrimSpace(s.cloneBaseDir) == "" {
+		return s.Resolve(candidate)
+	}
+
+	cwdCloner, err := NewGitHubCloner(os.Stdin, os.Stderr)
+	if err != nil {
+		return "", err
+	}
+
+	return s.resolveWithCloner(candidate, cwdCloner)
+}
+
+func (s *Source) resolveWithCloner(candidate internal.Candidate, cloner internal.Cloner) (string, error) {
 	source := candidate.Meta[internal.CandidateMetaSource]
 	if source != internal.CandidateSourceRemote {
 		return "", internal.ErrUnsupportedCandidate
@@ -212,7 +251,7 @@ func (s *Source) Resolve(candidate internal.Candidate) (string, error) {
 		return "", internal.ErrUnsupportedCandidate
 	}
 
-	path, err := s.cloner.Clone(repo)
+	path, err := cloner.Clone(repo)
 	if err != nil {
 		return "", err
 	}
