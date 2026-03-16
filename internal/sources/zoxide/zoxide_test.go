@@ -339,6 +339,35 @@ func TestCommandLister(t *testing.T) {
 		assert.False(t, cache.FetchedAt.IsZero())
 	})
 
+	t.Run("return error when backend command hangs instead of blocking forever", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		var (
+			store, err = zoxide.NewStore()
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, store.Save(zoxide.Cache{
+			FetchedAt: time.Now().Add(-zoxide.RefreshTTL).Add(-time.Minute).UTC(),
+			Backend:   "shell",
+			Matches:   []zoxide.Match{{Path: "/tmp/old", Score: 1}},
+		}))
+
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner, zoxide.WithBackendTimeout(100*time.Millisecond))
+		require.NoError(t, err)
+
+		_, listErr := sut.List(context.Background())
+
+		require.Error(t, listErr)
+	})
+
 	t.Run("refresh updates cache even when cache is fresh", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", t.TempDir())
 

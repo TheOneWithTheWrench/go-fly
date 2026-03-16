@@ -162,13 +162,22 @@ func filterMatches(query string, matches []Match) []Match {
 }
 
 type CommandLister struct {
-	runner internal.Runner
-	shell  string
-	store  *Store
-	now    func() time.Time
+	runner         internal.Runner
+	shell          string
+	store          *Store
+	now            func() time.Time
+	backendTimeout time.Duration
 }
 
-func NewCommandLister(runner internal.Runner) (*CommandLister, error) {
+type CommandListerOption func(*CommandLister)
+
+func WithBackendTimeout(d time.Duration) CommandListerOption {
+	return func(l *CommandLister) {
+		l.backendTimeout = d
+	}
+}
+
+func NewCommandLister(runner internal.Runner, opts ...CommandListerOption) (*CommandLister, error) {
 	if runner == nil {
 		return nil, fmt.Errorf("runner required")
 	}
@@ -183,7 +192,12 @@ func NewCommandLister(runner internal.Runner) (*CommandLister, error) {
 		return nil, err
 	}
 
-	return &CommandLister{runner: runner, shell: shell, store: store, now: time.Now}, nil
+	l := &CommandLister{runner: runner, shell: shell, store: store, now: time.Now, backendTimeout: defaultBackendTimeout}
+	for _, opt := range opts {
+		opt(l)
+	}
+
+	return l, nil
 }
 
 func (l *CommandLister) List(ctx context.Context) ([]Match, error) {
@@ -240,9 +254,10 @@ func (l *CommandLister) Refresh(ctx context.Context) error {
 }
 
 const (
-	backendZoxide = "zoxide"
-	backendZ      = "z"
-	backendShell  = "shell"
+	backendZoxide         = "zoxide"
+	backendZ              = "z"
+	backendShell          = "shell"
+	defaultBackendTimeout = 5 * time.Second
 )
 
 func (l *CommandLister) listWithFallback(ctx context.Context, preferredBackend string) ([]Match, string, error) {
@@ -250,7 +265,9 @@ func (l *CommandLister) listWithFallback(ctx context.Context, preferredBackend s
 	var lastErr error
 
 	for _, backend := range backends {
-		result, err := l.runBackend(ctx, backend)
+		backendCtx, cancel := context.WithTimeout(ctx, l.backendTimeout)
+		result, err := l.runBackend(backendCtx, backend)
+		cancel()
 		if err == nil {
 			return result, backend, nil
 		}
