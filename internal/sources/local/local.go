@@ -160,6 +160,9 @@ func (s *Source) Remove(path string) error {
 }
 
 func (s *Source) loadPruneAndMaybeStart() {
+	s.pruneMu.Lock()
+	defer s.pruneMu.Unlock()
+
 	state, exists, err := s.pruneStore.Load()
 	if err != nil {
 		state = PruneState{}
@@ -172,9 +175,6 @@ func (s *Source) loadPruneAndMaybeStart() {
 }
 
 func (s *Source) launchPrune(state PruneState, exists bool) {
-	s.pruneMu.Lock()
-	defer s.pruneMu.Unlock()
-
 	if !ShouldLaunchPrune(state, exists, s.now()) {
 		return
 	}

@@ -2,6 +2,8 @@ package remote_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -171,5 +173,48 @@ func TestNewOptions(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, 1, launches)
+	})
+
+	t.Run("launch refresh when cache missing", func(t *testing.T) {
+		t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+		var launches int
+		sut, err := remote.New(
+			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+				return nil, nil
+			}}),
+			remote.WithRefreshLauncher(internal.RefresherFunc(func() {
+				launches++
+			})),
+		)
+		require.NoError(t, err)
+
+		_, err = sut.Load(context.Background(), "repo")
+		assert.ErrorIs(t, err, internal.ErrNoReposTracked)
+		_, err = sut.Load(context.Background(), "repo")
+		assert.ErrorIs(t, err, internal.ErrNoReposTracked)
+
+		assert.Equal(t, 1, launches)
+	})
+
+	t.Run("propagate cache load errors", func(t *testing.T) {
+		cacheHome := t.TempDir()
+		t.Setenv("XDG_CACHE_HOME", cacheHome)
+
+		cacheDir := filepath.Join(cacheHome, "fly")
+		require.NoError(t, os.MkdirAll(cacheDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "remote.json"), []byte("{"), 0o644))
+
+		sut, err := remote.New(
+			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+				return nil, nil
+			}}),
+		)
+		require.NoError(t, err)
+
+		_, err = sut.Load(context.Background(), "repo")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "load cache")
 	})
 }

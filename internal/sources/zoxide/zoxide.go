@@ -223,7 +223,7 @@ func (l *CommandLister) List(ctx context.Context) ([]Match, error) {
 		Matches:   filtered,
 	})
 	if err != nil {
-		return result, nil
+		return nil, fmt.Errorf("save zoxide cache: %w", err)
 	}
 
 	return result, nil

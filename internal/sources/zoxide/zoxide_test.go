@@ -368,6 +368,39 @@ func TestCommandLister(t *testing.T) {
 		require.Error(t, listErr)
 	})
 
+	t.Run("propagate cache save errors", func(t *testing.T) {
+		cacheHome := t.TempDir()
+		t.Setenv("XDG_CACHE_HOME", cacheHome)
+
+		var (
+			root    = t.TempDir()
+			gitPath = filepath.Join(root, "repo")
+		)
+		require.NoError(t, os.MkdirAll(filepath.Join(gitPath, ".git"), 0o755))
+
+		cacheDir := filepath.Join(cacheHome, "fly")
+		require.NoError(t, os.MkdirAll(cacheDir, 0o555))
+		defer func() {
+			require.NoError(t, os.Chmod(cacheDir, 0o755))
+		}()
+
+		var (
+			runner = internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+				assert.Equal(t, "zoxide", name)
+				assert.Equal(t, []string{"query", "--list", "--score"}, args)
+				return []byte("10 " + gitPath + "\n"), nil
+			})
+		)
+
+		sut, err := zoxide.NewCommandLister(runner)
+		require.NoError(t, err)
+
+		_, err = sut.List(context.Background())
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "save zoxide cache")
+	})
+
 	t.Run("refresh updates cache even when cache is fresh", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", t.TempDir())
 

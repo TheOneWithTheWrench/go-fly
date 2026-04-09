@@ -167,8 +167,7 @@ func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, 
 
 	cache, exists, err := s.store.Load()
 	if err != nil {
-		cache = Cache{}
-		exists = false
+		return nil, fmt.Errorf("load cache: %w", err)
 	}
 
 	if ShouldRefresh(cache, exists) {
@@ -201,7 +200,10 @@ func (s *Source) launchRefresh() {
 	defer s.refreshMu.Unlock()
 
 	state, exists, err := s.refreshState.Load()
-	if err == nil && !ShouldLaunchRefresh(state, exists, s.now()) {
+	if err != nil {
+		return
+	}
+	if !ShouldLaunchRefresh(state, exists, s.now()) {
 		return
 	}
 
