@@ -23,7 +23,7 @@ type Source struct {
 }
 
 type Fetcher interface {
-	FetchAll(context.Context) ([]internal.Repo, error)
+	FetchAll(context.Context, internal.RefreshOutput) ([]internal.Repo, error)
 }
 
 type Option func(*options) error
@@ -257,10 +257,18 @@ func (s *Source) Resolve(candidate internal.Candidate) (string, error) {
 	return path, nil
 }
 
-func (s *Source) Refresh(ctx context.Context) error {
-	repos, err := s.fetcher.FetchAll(ctx)
+func (s *Source) Refresh(ctx context.Context, output internal.RefreshOutput) error {
+	if err := output.SetStatus("Refreshing remote repositories..."); err != nil {
+		return err
+	}
+
+	repos, err := s.fetcher.FetchAll(ctx, output)
 	if err != nil {
 		return fmt.Errorf("fetch repos: %w", err)
+	}
+
+	if err := output.SetStatus("Saving remote repository cache..."); err != nil {
+		return err
 	}
 
 	cache := Cache{
@@ -268,5 +276,13 @@ func (s *Source) Refresh(ctx context.Context) error {
 		Repos:     repos,
 	}
 
-	return s.store.Save(cache)
+	if err := s.store.Save(cache); err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintf(output, "Refreshed %d remote repositories\n", len(repos)); err != nil {
+		return err
+	}
+
+	return nil
 }

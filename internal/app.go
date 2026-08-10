@@ -63,14 +63,21 @@ func NewApp(sources []Source, sourceOptions ...Option) (*App, error) {
 	}, nil
 }
 
-func (a *App) Refresh(ctx context.Context) error {
+func (a *App) Refresh(ctx context.Context, output RefreshOutput) error {
 	for _, source := range a.sources {
 		refreshable, ok := source.(Refreshable)
 		if !ok {
 			continue
 		}
-		if err := refreshable.Refresh(ctx); err != nil {
+		if err := output.ClearStatus(); err != nil {
+			return fmt.Errorf("clear refresh status: %w", err)
+		}
+		if err := refreshable.Refresh(ctx, output); err != nil {
+			_ = output.ClearStatus()
 			return err
+		}
+		if err := output.ClearStatus(); err != nil {
+			return fmt.Errorf("clear refresh status: %w", err)
 		}
 	}
 

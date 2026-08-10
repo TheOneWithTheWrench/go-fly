@@ -93,7 +93,11 @@ func (s *Source) Load(ctx context.Context, query string) ([]internal.Candidate, 
 	return candidates, nil
 }
 
-func (s *Source) Refresh(ctx context.Context) error {
+func (s *Source) Refresh(ctx context.Context, output internal.RefreshOutput) error {
+	if err := output.SetStatus("Refreshing zoxide..."); err != nil {
+		return err
+	}
+
 	if refresher, ok := s.lister.(refreshableLister); ok {
 		return refresher.Refresh(ctx)
 	}

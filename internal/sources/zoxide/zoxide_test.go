@@ -3,6 +3,7 @@ package zoxide_test
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,7 +111,7 @@ func TestSourceRefresh(t *testing.T) {
 		sut, err := zoxide.New(zoxide.WithLister(lister))
 		require.NoError(t, err)
 
-		err = sut.Refresh(context.Background())
+		err = sut.Refresh(context.Background(), internal.NewRefreshOutput(io.Discard))
 
 		require.NoError(t, err)
 		assert.True(t, refreshCalled)
@@ -129,7 +130,7 @@ func TestSourceRefresh(t *testing.T) {
 		sut, err := zoxide.New(zoxide.WithLister(lister))
 		require.NoError(t, err)
 
-		err = sut.Refresh(context.Background())
+		err = sut.Refresh(context.Background(), internal.NewRefreshOutput(io.Discard))
 
 		require.NoError(t, err)
 		assert.True(t, listCalled)
@@ -146,7 +147,7 @@ func TestSourceRefresh(t *testing.T) {
 		sut, err := zoxide.New(zoxide.WithLister(lister))
 		require.NoError(t, err)
 
-		err = sut.Refresh(context.Background())
+		err = sut.Refresh(context.Background(), internal.NewRefreshOutput(io.Discard))
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, expectedErr)

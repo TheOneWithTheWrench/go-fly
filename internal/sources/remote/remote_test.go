@@ -1,11 +1,14 @@
 package remote_test
 
 import (
+	"bytes"
+	"context"
 	"testing"
 
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFilterRepos(t *testing.T) {
@@ -33,4 +36,26 @@ func TestFilterRepos(t *testing.T) {
 
 		assert.Empty(t, got)
 	})
+}
+
+func TestSourceRefresh(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	var (
+		outputBuffer = &bytes.Buffer{}
+		output       = internal.NewRefreshOutput(outputBuffer)
+		fetcher      = &FetcherMock{FetchAllFunc: func(_ context.Context, gotOutput internal.RefreshOutput) ([]internal.Repo, error) {
+			return []internal.Repo{{Name: "repo", FullName: "acme/repo"}}, nil
+		}}
+		sut, err = remote.New(remote.WithFetcher(fetcher))
+	)
+	require.NoError(t, err)
+
+	err = sut.Refresh(context.Background(), output)
+
+	require.NoError(t, err)
+	assert.Same(t, output, fetcher.FetchAllCalls()[0].RefreshOutput)
+	assert.Contains(t, outputBuffer.String(), "Refreshing remote repositories...")
+	assert.Contains(t, outputBuffer.String(), "Saving remote repository cache...")
+	assert.Contains(t, outputBuffer.String(), "Refreshed 1 remote repositories")
 }

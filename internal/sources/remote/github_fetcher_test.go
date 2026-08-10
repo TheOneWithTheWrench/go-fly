@@ -1,8 +1,10 @@
 package remote_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -39,7 +41,7 @@ func TestGitHubFetcherFetchAll(t *testing.T) {
 			sut = newSut(runner)
 		)
 
-		got, err := sut.FetchAll(context.Background())
+		got, err := sut.FetchAll(context.Background(), internal.NewRefreshOutput(io.Discard))
 
 		assert.ErrorIs(t, err, expected)
 		assert.Len(t, got, 0)
@@ -47,8 +49,9 @@ func TestGitHubFetcherFetchAll(t *testing.T) {
 
 	t.Run("fetch all user and org repos", func(t *testing.T) {
 		var (
-			calls []string
-			sut   = newSut(internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			calls  []string
+			output = &bytes.Buffer{}
+			sut    = newSut(internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
 				if name != "gh" {
 					return nil, errors.New("unexpected command")
 				}
@@ -80,13 +83,14 @@ func TestGitHubFetcherFetchAll(t *testing.T) {
 			}))
 		)
 
-		got, err := sut.FetchAll(context.Background())
+		got, err := sut.FetchAll(context.Background(), internal.NewRefreshOutput(output))
 
 		require.NoError(t, err)
 		assertUsesGet(t, calls)
 		assert.Equal(t, 1, countMatches(calls, "user/orgs"))
 		assert.Equal(t, 1, countMatches(calls, "user/repos"))
 		assert.Equal(t, 1, countMatches(calls, "orgs/acme/repos"))
+		assert.Equal(t, "Fetching GitHub organizations...\nFetching personal repositories...\nFetching organization repositories 1/1: acme...\n", output.String())
 		assert.Equal(t, []internal.Repo{
 			{Name: "repo", FullName: "user/repo", SSHURL: "git@github.com:user/repo.git"},
 			{Name: "shared", FullName: "acme/shared", SSHURL: "git@github.com:acme/shared.git"},
@@ -139,7 +143,7 @@ func TestGitHubFetcherFetchAll(t *testing.T) {
 			}))
 		)
 
-		got, err := sut.FetchAll(context.Background())
+		got, err := sut.FetchAll(context.Background(), internal.NewRefreshOutput(io.Discard))
 
 		require.NoError(t, err)
 		assertUsesGet(t, calls)

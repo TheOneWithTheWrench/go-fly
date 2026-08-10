@@ -77,7 +77,7 @@ func TestNewOptions(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 		var (
-			fetcher = &FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+			fetcher = &FetcherMock{FetchAllFunc: func(context.Context, internal.RefreshOutput) ([]internal.Repo, error) {
 				return nil, nil
 			}}
 			called   = false
@@ -118,7 +118,7 @@ func TestNewOptions(t *testing.T) {
 
 		var launches int
 		sut, err := remote.New(
-			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context, internal.RefreshOutput) ([]internal.Repo, error) {
 				return nil, nil
 			}}),
 			remote.WithRefreshLauncher(internal.RefresherFunc(func() {
@@ -152,7 +152,7 @@ func TestNewOptions(t *testing.T) {
 			t.Helper()
 
 			sut, newErr := remote.New(
-				remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+				remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context, internal.RefreshOutput) ([]internal.Repo, error) {
 					return nil, nil
 				}}),
 				remote.WithRefreshLauncher(internal.RefresherFunc(func() {
@@ -180,7 +180,7 @@ func TestNewOptions(t *testing.T) {
 
 		var launches int
 		sut, err := remote.New(
-			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context, internal.RefreshOutput) ([]internal.Repo, error) {
 				return nil, nil
 			}}),
 			remote.WithRefreshLauncher(internal.RefresherFunc(func() {
@@ -206,7 +206,7 @@ func TestNewOptions(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "remote.json"), []byte("{"), 0o644))
 
 		sut, err := remote.New(
-			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context) ([]internal.Repo, error) {
+			remote.WithFetcher(&FetcherMock{FetchAllFunc: func(context.Context, internal.RefreshOutput) ([]internal.Repo, error) {
 				return nil, nil
 			}}),
 		)

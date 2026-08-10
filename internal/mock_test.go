@@ -5,8 +5,9 @@ package internal_test
 
 import (
 	"context"
-	"github.com/TheOneWithTheWrench/go-fly/internal"
 	"sync"
+
+	"github.com/TheOneWithTheWrench/go-fly/internal"
 )
 
 // Ensure, that PickerMock does implement internal.Picker.
@@ -391,7 +392,7 @@ var _ internal.Refreshable = &RefreshableMock{}
 //
 //		// make and configure a mocked internal.Refreshable
 //		mockedRefreshable := &RefreshableMock{
-//			RefreshFunc: func(contextMoqParam context.Context) error {
+//			RefreshFunc: func(contextMoqParam context.Context, refreshOutput internal.RefreshOutput) error {
 //				panic("mock out the Refresh method")
 //			},
 //		}
@@ -402,7 +403,7 @@ var _ internal.Refreshable = &RefreshableMock{}
 //	}
 type RefreshableMock struct {
 	// RefreshFunc mocks the Refresh method.
-	RefreshFunc func(contextMoqParam context.Context) error
+	RefreshFunc func(contextMoqParam context.Context, refreshOutput internal.RefreshOutput) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -410,25 +411,29 @@ type RefreshableMock struct {
 		Refresh []struct {
 			// ContextMoqParam is the contextMoqParam argument value.
 			ContextMoqParam context.Context
+			// RefreshOutput is the refreshOutput argument value.
+			RefreshOutput internal.RefreshOutput
 		}
 	}
 	lockRefresh sync.RWMutex
 }
 
 // Refresh calls RefreshFunc.
-func (mock *RefreshableMock) Refresh(contextMoqParam context.Context) error {
+func (mock *RefreshableMock) Refresh(contextMoqParam context.Context, refreshOutput internal.RefreshOutput) error {
 	if mock.RefreshFunc == nil {
 		panic("RefreshableMock.RefreshFunc: method is nil but Refreshable.Refresh was just called")
 	}
 	callInfo := struct {
 		ContextMoqParam context.Context
+		RefreshOutput   internal.RefreshOutput
 	}{
 		ContextMoqParam: contextMoqParam,
+		RefreshOutput:   refreshOutput,
 	}
 	mock.lockRefresh.Lock()
 	mock.calls.Refresh = append(mock.calls.Refresh, callInfo)
 	mock.lockRefresh.Unlock()
-	return mock.RefreshFunc(contextMoqParam)
+	return mock.RefreshFunc(contextMoqParam, refreshOutput)
 }
 
 // RefreshCalls gets all the calls that were made to Refresh.
@@ -437,13 +442,162 @@ func (mock *RefreshableMock) Refresh(contextMoqParam context.Context) error {
 //	len(mockedRefreshable.RefreshCalls())
 func (mock *RefreshableMock) RefreshCalls() []struct {
 	ContextMoqParam context.Context
+	RefreshOutput   internal.RefreshOutput
 } {
 	var calls []struct {
 		ContextMoqParam context.Context
+		RefreshOutput   internal.RefreshOutput
 	}
 	mock.lockRefresh.RLock()
 	calls = mock.calls.Refresh
 	mock.lockRefresh.RUnlock()
+	return calls
+}
+
+// Ensure, that RefreshOutputMock does implement internal.RefreshOutput.
+// If this is not the case, regenerate this file with moq.
+var _ internal.RefreshOutput = &RefreshOutputMock{}
+
+// RefreshOutputMock is a mock implementation of internal.RefreshOutput.
+//
+//	func TestSomethingThatUsesRefreshOutput(t *testing.T) {
+//
+//		// make and configure a mocked internal.RefreshOutput
+//		mockedRefreshOutput := &RefreshOutputMock{
+//			ClearStatusFunc: func() error {
+//				panic("mock out the ClearStatus method")
+//			},
+//			SetStatusFunc: func(s string) error {
+//				panic("mock out the SetStatus method")
+//			},
+//			WriteFunc: func(p []byte) (int, error) {
+//				panic("mock out the Write method")
+//			},
+//		}
+//
+//		// use mockedRefreshOutput in code that requires internal.RefreshOutput
+//		// and then make assertions.
+//
+//	}
+type RefreshOutputMock struct {
+	// ClearStatusFunc mocks the ClearStatus method.
+	ClearStatusFunc func() error
+
+	// SetStatusFunc mocks the SetStatus method.
+	SetStatusFunc func(s string) error
+
+	// WriteFunc mocks the Write method.
+	WriteFunc func(p []byte) (int, error)
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// ClearStatus holds details about calls to the ClearStatus method.
+		ClearStatus []struct {
+		}
+		// SetStatus holds details about calls to the SetStatus method.
+		SetStatus []struct {
+			// S is the s argument value.
+			S string
+		}
+		// Write holds details about calls to the Write method.
+		Write []struct {
+			// P is the p argument value.
+			P []byte
+		}
+	}
+	lockClearStatus sync.RWMutex
+	lockSetStatus   sync.RWMutex
+	lockWrite       sync.RWMutex
+}
+
+// ClearStatus calls ClearStatusFunc.
+func (mock *RefreshOutputMock) ClearStatus() error {
+	if mock.ClearStatusFunc == nil {
+		panic("RefreshOutputMock.ClearStatusFunc: method is nil but RefreshOutput.ClearStatus was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockClearStatus.Lock()
+	mock.calls.ClearStatus = append(mock.calls.ClearStatus, callInfo)
+	mock.lockClearStatus.Unlock()
+	return mock.ClearStatusFunc()
+}
+
+// ClearStatusCalls gets all the calls that were made to ClearStatus.
+// Check the length with:
+//
+//	len(mockedRefreshOutput.ClearStatusCalls())
+func (mock *RefreshOutputMock) ClearStatusCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockClearStatus.RLock()
+	calls = mock.calls.ClearStatus
+	mock.lockClearStatus.RUnlock()
+	return calls
+}
+
+// SetStatus calls SetStatusFunc.
+func (mock *RefreshOutputMock) SetStatus(s string) error {
+	if mock.SetStatusFunc == nil {
+		panic("RefreshOutputMock.SetStatusFunc: method is nil but RefreshOutput.SetStatus was just called")
+	}
+	callInfo := struct {
+		S string
+	}{
+		S: s,
+	}
+	mock.lockSetStatus.Lock()
+	mock.calls.SetStatus = append(mock.calls.SetStatus, callInfo)
+	mock.lockSetStatus.Unlock()
+	return mock.SetStatusFunc(s)
+}
+
+// SetStatusCalls gets all the calls that were made to SetStatus.
+// Check the length with:
+//
+//	len(mockedRefreshOutput.SetStatusCalls())
+func (mock *RefreshOutputMock) SetStatusCalls() []struct {
+	S string
+} {
+	var calls []struct {
+		S string
+	}
+	mock.lockSetStatus.RLock()
+	calls = mock.calls.SetStatus
+	mock.lockSetStatus.RUnlock()
+	return calls
+}
+
+// Write calls WriteFunc.
+func (mock *RefreshOutputMock) Write(p []byte) (int, error) {
+	if mock.WriteFunc == nil {
+		panic("RefreshOutputMock.WriteFunc: method is nil but RefreshOutput.Write was just called")
+	}
+	callInfo := struct {
+		P []byte
+	}{
+		P: p,
+	}
+	mock.lockWrite.Lock()
+	mock.calls.Write = append(mock.calls.Write, callInfo)
+	mock.lockWrite.Unlock()
+	return mock.WriteFunc(p)
+}
+
+// WriteCalls gets all the calls that were made to Write.
+// Check the length with:
+//
+//	len(mockedRefreshOutput.WriteCalls())
+func (mock *RefreshOutputMock) WriteCalls() []struct {
+	P []byte
+} {
+	var calls []struct {
+		P []byte
+	}
+	mock.lockWrite.RLock()
+	calls = mock.calls.Write
+	mock.lockWrite.RUnlock()
 	return calls
 }
 

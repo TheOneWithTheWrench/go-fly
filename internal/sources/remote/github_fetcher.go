@@ -20,16 +20,22 @@ func NewGitHubFetcher(runner internal.Runner) *GitHubFetcher {
 	return &GitHubFetcher{runner: runner}
 }
 
-func (f *GitHubFetcher) FetchAll(ctx context.Context) ([]internal.Repo, error) {
+func (f *GitHubFetcher) FetchAll(ctx context.Context, output internal.RefreshOutput) ([]internal.Repo, error) {
 	if f.runner == nil {
 		return nil, fmt.Errorf("runner required")
 	}
 
+	if err := output.SetStatus("Fetching GitHub organizations..."); err != nil {
+		return nil, err
+	}
 	orgs, err := f.listOrgs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	if err := output.SetStatus("Fetching personal repositories..."); err != nil {
+		return nil, err
+	}
 	userRepos, err := f.listRepos(ctx, "user/repos")
 	if err != nil {
 		return nil, err
@@ -49,7 +55,10 @@ func (f *GitHubFetcher) FetchAll(ctx context.Context) ([]internal.Repo, error) {
 		repos = append(repos, repo)
 	}
 
-	for _, org := range orgs {
+	for i, org := range orgs {
+		if err := output.SetStatus(fmt.Sprintf("Fetching organization repositories %d/%d: %s...", i+1, len(orgs), org)); err != nil {
+			return nil, err
+		}
 		orgRepos, err := f.listRepos(ctx, fmt.Sprintf("orgs/%s/repos", org))
 		if err != nil {
 			return nil, err

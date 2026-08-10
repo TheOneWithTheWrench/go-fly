@@ -39,7 +39,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 			return err
 		},
 		Refresh: func() error {
-			return appInstance.Refresh(context.Background())
+			return appInstance.Refresh(context.Background(), fly.NewRefreshOutput(stderr))
 		},
 		Prune: func() error {
 			return appInstance.Prune()

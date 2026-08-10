@@ -29,8 +29,8 @@ func (s refreshableSource) Resolve(candidate internal.Candidate) (string, error)
 	return "", internal.ErrUnsupportedCandidate
 }
 
-func (s refreshableSource) Refresh(ctx context.Context) error {
-	return s.refreshable.Refresh(ctx)
+func (s refreshableSource) Refresh(ctx context.Context, output internal.RefreshOutput) error {
+	return s.refreshable.Refresh(ctx, output)
 }
 
 type prunableSource struct {
@@ -188,15 +188,22 @@ func TestRefresh(t *testing.T) {
 			source = &SourceMock{LoadFunc: func(_ context.Context, query string) ([]internal.Candidate, error) {
 				return nil, internal.ErrNoReposTracked
 			}}
-			refresh = &RefreshableMock{RefreshFunc: func(ctx context.Context) error { return nil }}
+			refresh = &RefreshableMock{RefreshFunc: func(ctx context.Context, output internal.RefreshOutput) error { return nil }}
 		)
 
 		sut := newSut(t, []internal.Source{refreshableSource{source: source, refreshable: refresh}}, picker)
+		output := &RefreshOutputMock{
+			ClearStatusFunc: func() error { return nil },
+			SetStatusFunc:   func(string) error { return nil },
+			WriteFunc:       func(p []byte) (int, error) { return len(p), nil },
+		}
 
-		err := sut.Refresh(context.Background())
+		err := sut.Refresh(context.Background(), output)
 
 		require.NoError(t, err)
 		assert.Len(t, refresh.RefreshCalls(), 1)
+		assert.Len(t, output.ClearStatusCalls(), 2)
+		assert.Same(t, output, refresh.RefreshCalls()[0].RefreshOutput)
 	})
 }
 

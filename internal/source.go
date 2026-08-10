@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"io"
 )
 
 type Source interface {
@@ -11,7 +12,13 @@ type Source interface {
 }
 
 type Refreshable interface {
-	Refresh(context.Context) error
+	Refresh(context.Context, RefreshOutput) error
+}
+
+type RefreshOutput interface {
+	io.Writer
+	SetStatus(string) error
+	ClearStatus() error
 }
 
 type Trackable interface {

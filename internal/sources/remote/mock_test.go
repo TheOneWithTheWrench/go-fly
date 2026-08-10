@@ -5,9 +5,10 @@ package remote_test
 
 import (
 	"context"
+	"sync"
+
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 	"github.com/TheOneWithTheWrench/go-fly/internal/sources/remote"
-	"sync"
 )
 
 // Ensure, that FetcherMock does implement remote.Fetcher.
@@ -20,7 +21,7 @@ var _ remote.Fetcher = &FetcherMock{}
 //
 //		// make and configure a mocked remote.Fetcher
 //		mockedFetcher := &FetcherMock{
-//			FetchAllFunc: func(contextMoqParam context.Context) ([]internal.Repo, error) {
+//			FetchAllFunc: func(contextMoqParam context.Context, refreshOutput internal.RefreshOutput) ([]internal.Repo, error) {
 //				panic("mock out the FetchAll method")
 //			},
 //		}
@@ -31,7 +32,7 @@ var _ remote.Fetcher = &FetcherMock{}
 //	}
 type FetcherMock struct {
 	// FetchAllFunc mocks the FetchAll method.
-	FetchAllFunc func(contextMoqParam context.Context) ([]internal.Repo, error)
+	FetchAllFunc func(contextMoqParam context.Context, refreshOutput internal.RefreshOutput) ([]internal.Repo, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -39,25 +40,29 @@ type FetcherMock struct {
 		FetchAll []struct {
 			// ContextMoqParam is the contextMoqParam argument value.
 			ContextMoqParam context.Context
+			// RefreshOutput is the refreshOutput argument value.
+			RefreshOutput internal.RefreshOutput
 		}
 	}
 	lockFetchAll sync.RWMutex
 }
 
 // FetchAll calls FetchAllFunc.
-func (mock *FetcherMock) FetchAll(contextMoqParam context.Context) ([]internal.Repo, error) {
+func (mock *FetcherMock) FetchAll(contextMoqParam context.Context, refreshOutput internal.RefreshOutput) ([]internal.Repo, error) {
 	if mock.FetchAllFunc == nil {
 		panic("FetcherMock.FetchAllFunc: method is nil but Fetcher.FetchAll was just called")
 	}
 	callInfo := struct {
 		ContextMoqParam context.Context
+		RefreshOutput   internal.RefreshOutput
 	}{
 		ContextMoqParam: contextMoqParam,
+		RefreshOutput:   refreshOutput,
 	}
 	mock.lockFetchAll.Lock()
 	mock.calls.FetchAll = append(mock.calls.FetchAll, callInfo)
 	mock.lockFetchAll.Unlock()
-	return mock.FetchAllFunc(contextMoqParam)
+	return mock.FetchAllFunc(contextMoqParam, refreshOutput)
 }
 
 // FetchAllCalls gets all the calls that were made to FetchAll.
@@ -66,9 +71,11 @@ func (mock *FetcherMock) FetchAll(contextMoqParam context.Context) ([]internal.R
 //	len(mockedFetcher.FetchAllCalls())
 func (mock *FetcherMock) FetchAllCalls() []struct {
 	ContextMoqParam context.Context
+	RefreshOutput   internal.RefreshOutput
 } {
 	var calls []struct {
 		ContextMoqParam context.Context
+		RefreshOutput   internal.RefreshOutput
 	}
 	mock.lockFetchAll.RLock()
 	calls = mock.calls.FetchAll
