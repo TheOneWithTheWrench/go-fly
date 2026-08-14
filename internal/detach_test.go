@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/TheOneWithTheWrench/go-fly/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +48,7 @@ func TestNewIsolatedCommand(t *testing.T) {
 		require.NoError(t, cmd.Start())
 		t.Cleanup(func() { _ = cmd.Process.Kill() })
 
-		got, err := syscall.Getsid(cmd.Process.Pid)
+		got, err := unix.Getsid(cmd.Process.Pid)
 
 		require.NoError(t, err)
 		assert.Equal(t, cmd.Process.Pid, got, "child should lead its own session")
@@ -85,7 +87,7 @@ func TestStartDetached(t *testing.T) {
 		pid := waitForPid(t, pidFile)
 		t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
 
-		got, sidErr := syscall.Getsid(pid)
+		got, sidErr := unix.Getsid(pid)
 
 		require.NoError(t, sidErr)
 		assert.Equal(t, pid, got, "detached process should lead its own session")
@@ -128,7 +130,7 @@ func TestStartDetached(t *testing.T) {
 func sessionID(t *testing.T) int {
 	t.Helper()
 
-	sid, err := syscall.Getsid(os.Getpid())
+	sid, err := unix.Getsid(os.Getpid())
 	require.NoError(t, err)
 
 	return sid
