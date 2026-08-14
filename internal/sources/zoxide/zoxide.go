@@ -341,18 +341,6 @@ func (l *CommandLister) runAndParse(ctx context.Context, name string, args ...st
 	return nil, nil
 }
 
-func defaultRunner() internal.Runner {
-	return internal.RunnerFunc(func(ctx context.Context, name string, args ...string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, name, args...)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return output, fmt.Errorf("run %s %v: %w: %s", name, args, err, output)
-		}
-
-		return output, nil
-	})
-}
-
 func wrapListError(err error) error {
 	return fmt.Errorf("list zoxide entries: %w", err)
 }

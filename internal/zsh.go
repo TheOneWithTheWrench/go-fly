@@ -19,12 +19,14 @@ _fly_track() {
   command fly track >/dev/null 2>&1
 }
 
-autoload -U add-zsh-hook
-if ! add-zsh-hook -L chpwd 2>/dev/null | command grep -q "_fly_track"; then
-  add-zsh-hook chpwd _fly_track
-fi
+if [[ -z "$` + ChildEnvVar + `" ]]; then
+  autoload -U add-zsh-hook
+  if ! add-zsh-hook -L chpwd 2>/dev/null | command grep -q "_fly_track"; then
+    add-zsh-hook chpwd _fly_track
+  fi
 
-_fly_track
+  _fly_track
+fi
 `
 
 func ZshInitSnippet() string {

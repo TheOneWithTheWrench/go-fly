@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/charmbracelet/x/term"
 )
 
 type refreshOutput struct {
@@ -104,6 +105,5 @@ func isTerminalWriter(writer io.Writer) bool {
 		return false
 	}
 
-	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(file.Fd())
 }
